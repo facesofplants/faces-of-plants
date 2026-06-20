@@ -1,0 +1,14 @@
+packages:
+  - packages/**/*
+
+ignoredBuiltDependencies:
+  - '@pulumi/aws-native'
+  - '@pulumi/command'
+  - '@pulumi/docker-build'
+  - '@pulumi/kubernetes'
+  - '@tailwindcss/oxide'
+  - aws-sdk
+  - esbuild
+  - protobufjs
+  - sharp
+  - unrs-resolver

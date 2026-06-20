@@ -1,0 +1,36 @@
+{
+  "name": "@faces-of-plants/functions",
+  "version": "0.1.1",
+  "type": "module",
+  "scripts": {
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest --run --coverage",
+    "test:ui": "vitest --ui",
+    "typecheck": "tsc -noEmit",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
+    "format": "prettier --write \"**/*.{ts,json}\"",
+    "format:check": "prettier --check \"**/*.{ts,json}\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/aws-lambda": "^8.10.150",
+    "@types/cookie": "^0.6.0",
+    "@types/node": "^24.0.7",
+    "@typescript-eslint/eslint-plugin": "^8.20.0",
+    "@typescript-eslint/parser": "^8.20.0",
+    "@vitest/coverage-v8": "^4.0.14",
+    "@vitest/ui": "^4.0.14",
+    "eslint": "^9.17.0",
+    "eslint-plugin-import": "^2.31.0",
+    "fast-check": "^4.3.0",
+    "prettier": "^3.6.2",
+    "sst": "3.17.8",
+    "vitest": "^4.0.14"
+  },
+  "dependencies": {
+    "@faces-of-plants/core": "workspace:*",
+    "cookie": "^0.6.0"
+  }
+}

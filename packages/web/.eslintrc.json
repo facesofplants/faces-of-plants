@@ -1,0 +1,52 @@
+{
+  "extends": [
+    "next/core-web-vitals",
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "prettier"
+  ],
+  "plugins": ["@typescript-eslint", "@next/next"],
+  "env": {
+    "browser": true,
+    "node": true
+  },
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module"
+  },
+  "globals": {
+    "React": "readonly",
+    "fetch": "readonly",
+    "window": "readonly",
+    "document": "readonly",
+    "localStorage": "readonly",
+    "sessionStorage": "readonly",
+    "setTimeout": "readonly",
+    "clearTimeout": "readonly",
+    "setInterval": "readonly",
+    "clearInterval": "readonly",
+    "TextEncoder": "readonly",
+    "URL": "readonly",
+    "URLSearchParams": "readonly",
+    "Headers": "readonly",
+    "Request": "readonly",
+    "MouseEvent": "readonly",
+    "Node": "readonly",
+    "HTMLDivElement": "readonly",
+    "HTMLCanvasElement": "readonly",
+    "CanvasRenderingContext2D": "readonly",
+    "Blob": "readonly",
+    "KeyboardEvent": "readonly",
+    "NodeJS": "readonly",
+    "btoa": "readonly",
+    "indexedDB": "readonly",
+    "navigator": "readonly",
+    "alert": "readonly",
+    "confirm": "readonly"
+  },
+  "rules": {
+    "@typescript-eslint/no-unused-vars": "warn",
+    "@typescript-eslint/explicit-module-boundary-types": "off",
+    "no-console": "warn"
+  }
+}

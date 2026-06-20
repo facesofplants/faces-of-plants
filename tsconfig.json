@@ -1,0 +1,21 @@
+{
+  "extends": "@tsconfig/node22/tsconfig.json",
+  "exclude": [
+    "packages",
+    "stacks-backup",
+    "stacks-v2-backup",
+    "hub.giuseppeserrecchia.com"
+  ],
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "node",
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true
+  }
+}
