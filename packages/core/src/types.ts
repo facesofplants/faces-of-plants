@@ -5,10 +5,12 @@ export interface GBIFSearchParams {
   country?: string;
   basisOfRecord?: string;
   scientificName?: string;
+  taxonKey?: number;
   hasCoordinate?: boolean;
   hasGeospatialIssue?: boolean;
   year?: string;
   kingdom?: string;
+  kingdomKey?: number;
   phylum?: string;
   class?: string;
   order?: string;
@@ -16,6 +18,7 @@ export interface GBIFSearchParams {
   genus?: string;
   species?: string;
   mediaType?: string;
+  geometry?: string; // WKT POLYGON for geographic filtering
 }
 
 export interface GBIFOccurrence {

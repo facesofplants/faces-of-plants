@@ -72,7 +72,7 @@ def create_model():
 
 
 def convert_to_onnx(output_path: str):
-    """Convert model to ONNX format."""
+    """Convert model to ONNX format with embedded weights."""
     print("Creating MobileNetV2 model with 38-class head...")
     model = create_model()
     model.eval()
@@ -96,6 +96,22 @@ def convert_to_onnx(output_path: str):
         },
     )
     print(f"ONNX model saved to {output_path}")
+
+    # Ensure all weights are embedded (not external data files)
+    import onnx
+    model_onnx = onnx.load(output_path)
+    onnx.save(
+        model_onnx,
+        output_path,
+        save_as_external_data=False,
+    )
+    print("Ensured model has embedded weights (no external data)")
+
+    # Remove any external data files that may have been created
+    data_file = output_path + ".data"
+    if os.path.exists(data_file):
+        os.remove(data_file)
+        print(f"Removed external data file: {data_file}")
 
     # Save class names
     class_names_path = os.path.join(os.path.dirname(output_path), "class-names.json")

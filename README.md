@@ -1,261 +1,225 @@
 # Faces of Plants
 
-An open-source platform for biodiversity exploration, powered by [GBIF](https://www.gbif.org) data and AI-powered natural language search.
+Open-source platform for plant biodiversity exploration with multilingual natural-language search, interactive maps, and multi-source enrichment.
 
-**Live:** [facesofplants.org](https://facesofplants.org)  
-**License:** MIT  
-**Challenge:** [GBIF Ebbe Nielsen Challenge 2026](https://www.gbif.org/awards/ebbe-2026-rules)
+- Live site: https://facesofplants.org
+- License: MIT
 
-## Overview
+## What It Is
 
-Faces of Plants makes global biodiversity data accessible to everyone. Ask questions in natural language, explore species on interactive maps, and analyze distribution patterns — all powered by GBIF's global network of scientific institutions.
+Faces of Plants helps users explore plant occurrence data with a search experience that combines:
 
-## Features
+- GBIF as primary occurrence backbone
+- iNaturalist and EOL as complementary sources
+- AI-assisted query interpretation (LLM optional)
+- Geographic resolution (country, region, city) with geometry-aware filtering
 
-- **Interactive Botanical Atlas** — Search and visualize plant occurrences worldwide with clustering, heatmap, and temporal filtering
-- **Natural Language Query** — Ask questions like "Show me oak trees in Italy" and get structured results from GBIF
-- **Multi-source Enrichment** — Data combined from GBIF, iNaturalist, and Encyclopedia of Life
-- **Temporal Analysis** — Analyze how species distributions change over time
-- **Species Lookup** — Detailed species information from GBIF's taxonomy API
-- **User Collections** — Save and organize your favorite species and searches
+The project is a pnpm monorepo deployed on AWS using SST v3.
 
-## Architecture
+## Current Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Frontend (Next.js)                       │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────┐  │
-│  │   Maps   │  │  About   │  │Education │  │  Profile   │  │
-│  └────┬─────┘  └──────────┘  └──────────┘  └────────────┘  │
-│       │                                                      │
-│  ┌────▼─────────────────────────────────────────────────┐   │
-│  │              API Routes (Next.js)                     │   │
-│  │  /api/map-search  /api/multi-source  /api/auth/*     │   │
-│  └────┬─────────────────────────────────────────────────┘   │
-└───────┼─────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    AWS Cloud (SST v3)                        │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────┐  │
-│  │ API GW   │  │ Lambda   │  │ DynamoDB │  │ CloudFront │  │
-│  │ (v2)     │  │ (query,  │  │ (auth,   │  │ (CDN)      │  │
-│  │          │  │ species, │  │ cache,   │  │            │  │
-│  │          │  │ collect.)│  │ collect.)│  │            │  │
-│  └──────────┘  └────┬─────┘  └──────────┘  └────────────┘  │
-│                     │                                       │
-└─────────────────────┼───────────────────────────────────────┘
-                      │
-                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  External APIs (Open Data)                   │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐                  │
-│  │  GBIF    │  │iNaturalist│  │   EOL    │                  │
-│  │ (primary)│  │          │  │          │                  │
-│  └──────────┘  └──────────┘  └──────────┘                  │
-└─────────────────────────────────────────────────────────────┘
-```
+### Applications
 
-### AWS Services Used
+- `packages/web`: public Next.js app (maps, education, auth, profile, API routes)
+- `packages/admin`: admin Next.js console (settings, logs, operational tools)
 
-| Service | Purpose | Cost Tier |
-|---------|---------|-----------|
-| **Lambda** | Serverless compute for API endpoints | Free tier eligible |
-| **API Gateway v2** | HTTP API routing | Free tier eligible |
-| **DynamoDB** | Auth sessions, caching, user collections | Free tier eligible |
-| **CloudFront** | CDN for frontend static assets | Free tier eligible |
-| **S3** | Static hosting for Next.js build | Free tier eligible |
+### Shared Runtime and Services
 
-### Running Locally
+- `packages/core`: shared TypeScript services and models (query engine, LLM client, taxonomy/location resolution, rate limiting, retries, cache abstractions)
+- `packages/functions`: Lambda handlers and data providers (GBIF, iNaturalist, EOL, API handlers, LLM proxy)
 
-The application can run locally without AWS for development:
+### Infrastructure (SST)
 
-```bash
-# Install dependencies
-pnpm install
+- `infra/api.ts`: API Gateway v2 + Lambda routes
+- `infra/frontend.ts`: public web deployment
+- `infra/admin-frontend.ts`: admin console deployment
+- `infra/database.ts`: DynamoDB tables
+- `infra/secrets.ts`: SST secrets
+- `sst.config.ts`: stage, region, domain wiring, module composition
 
-# Start local development (uses SST dev mode with local AWS emulation)
-pnpm dev
-```
+Default region: `eu-central-1`.
+Supported stages: `dev`, `staging`, `production`.
 
-For full functionality locally, you need:
+## Key Features in the Current Codebase
+
+- Multilingual plant name resolution pipeline with scientific-name validation and dynamic GBIF lookup
+- Explicit location parsing and geocoding with sub-country geometry filtering support
+- Multi-source query orchestration with merge strategies (`union`, `intersection`, `priority`)
+- Provider graceful degradation: partial source failures do not fail the full response
+- DynamoDB-backed caching, auth/session storage, search logs, system settings, and user collections
+- NextAuth-based auth flows (credentials + OAuth providers when configured)
+
+## API Surface (High-Level)
+
+### Next.js API routes (web app)
+
+- `/api/map-search`
+- `/api/multi-source`
+- `/api/plantnet`
+- `/api/feature-flags`
+- `/api/homepage-examples`
+- `/api/education/progress`
+- `/api/auth/*`
+
+### API Gateway routes (SST/Lambda)
+
+- `POST /v1/query`
+- `GET /v1/species/{id}`
+- `POST /v1/collections`
+- `GET /v1/collections/{userId}`
+- `GET /v1/data-sources`
+- `DELETE /admin/cache`
+- `GET /health`
+- `POST /llm-proxy`
+
+## Quick Start
+
+### Prerequisites
+
 - Node.js 18+
-- AWS CLI configured (for SST dev mode)
-- A Mistral AI API key (for natural language queries)
+- pnpm
+- AWS credentials configured (required for `sst dev` / deploy workflows)
 
-The GBIF API requires no authentication — it's open access.
-
-## GBIF Integration
-
-This platform uses data from [GBIF.org](https://www.gbif.org) available under a [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) license.
-
-### How we use GBIF data
-
-- **Occurrence Search API** (`api.gbif.org/v1/occurrence/search`) — Real-time plant occurrence queries with georeferenced coordinates
-- **Species API** (`api.gbif.org/v1/species/{key}`) — Taxonomic information and species details
-- **Caching** — DynamoDB-backed cache to reduce API load and improve response times
-- **Natural Language → GBIF Query** — AI (Mistral) converts plain-language questions into structured GBIF API parameters
-
-All occurrence data is attributed to its original sources as required by GBIF's data usage policy. See [DATA_PROVENANCE.md](DATA_PROVENANCE.md) for detailed documentation.
-
-### API Calls
+### Install
 
 ```bash
-# Search occurrences
-curl "https://api.gbif.org/v1/occurrence/search?kingdom=Plantae&hasCoordinate=true&q=Quercus&limit=10"
-
-# Get species info
-curl "https://api.gbif.org/v1/species/2877951"
-```
-
-No API key required. All requests include a custom User-Agent header for identification.
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | Next.js 15, React 19, Tailwind CSS, React-Leaflet |
-| Backend | AWS Lambda, API Gateway v2, SST v3 |
-| Database | DynamoDB (auth, collections, cache) |
-| AI | Mistral LLM for natural language query conversion |
-| Auth | NextAuth v4, Google OAuth, GitHub OAuth, Credentials |
-| Infrastructure | SST (Serverless Stack), AWS, CloudFront |
-
-## Architecture: Core Logic vs AWS Lambda
-
-The codebase is structured with a clear separation between **core logic** (AWS-agnostic) and **Lambda handlers** (thin AWS wrappers):
-
-```
-packages/
-├── core/                    # Pure TypeScript — NO AWS dependencies
-│   └── src/
-│       ├── types.ts         # GBIFOccurrence, SearchParams, etc.
-│       └── services/
-│           ├── queryEngine.ts    # Multi-source query orchestration
-│           ├── CacheService.ts   # DynamoDB caching (swappable)
-│           ├── llm.ts            # Mistral AI client
-│           └── RetryService.ts   # Retry logic
-│
-├── functions/               # Lambda handlers — thin wrappers
-│   ├── api/
-│   │   ├── query.ts         # Parses API Gateway event → calls core
-│   │   ├── species.ts       # Species lookup
-│   │   └── collections.ts   # User collections CRUD
-│   └── gbif/
-│       └── client.ts        # GBIF API client (pure fetch, no AWS)
-│
-└── web/                     # Next.js frontend
-    └── src/app/api/         # Alternative API routes (no Lambda needed)
-```
-
-**Key insight:** The GBIF client (`packages/functions/gbif/client.ts`) uses plain `fetch()` — no AWS SDK. The core query engine (`packages/core/`) is pure TypeScript. Lambda handlers are just event-parsing wrappers.
-
-### Testing Core Logic Locally (No AWS Required)
-
-The GBIF integration and query engine can be tested without any AWS credentials:
-
-```bash
-# Test GBIF client directly
-node -e "
-  const { GBIFClient } = require('./packages/functions/gbif/client');
-  const client = new GBIFClient();
-  client.searchOccurrences({ q: 'Quercus', limit: 5 }).then(r => console.log(r));
-"
-
-# Or use the Next.js API routes (runs locally with pnpm dev)
-curl http://localhost:3000/api/map-search -X POST \
-  -H "Content-Type: application/json" \
-  -d '{"species": "Quercus", "limit": 10}'
-```
-
-### Production: AWS Lambda + SST
-
-In production, the same code runs on AWS Lambda via SST (Serverless Stack):
-
-```bash
-# Deploy to AWS (requires AWS CLI configured)
-npx sst deploy --stage production
-```
-
-## Getting Started
-
-```bash
-# Clone the repository
-git clone https://github.com/giuseppeserrecchia/faces-of-plants-1.git
-cd faces-of-plants-1
-
-# Install dependencies
+git clone https://github.com/facesofplants/faces-of-plants.git
+cd faces-of-plants
 pnpm install
-
-# Copy environment variables
 cp .env.example .env.local
-# Edit .env.local with your values
+```
 
-# Start development (uses SST dev mode — simulates AWS locally)
+Update `.env.local` with local values as needed (especially auth and LLM settings).
+
+### Run (recommended full-stack dev)
+
+```bash
 pnpm dev
+```
 
-# Build for production
+This starts SST development mode and connects the apps/functions to deployed or live cloud resources for development.
+
+### Run apps directly (without `sst dev`)
+
+```bash
+# Public app
+pnpm -C packages/web dev
+
+# Admin app (port 3001)
+pnpm -C packages/admin dev
+```
+
+## Common Commands
+
+### Repository-level
+
+```bash
+pnpm dev
 pnpm build
+pnpm deploy
+pnpm remove
 
-# Deploy to AWS
-npx sst deploy --stage production
+pnpm typecheck
+pnpm lint
+pnpm lint:fix
+pnpm format
+pnpm format:check
+
+pnpm test
+pnpm test:all
+pnpm test:core
+pnpm test:functions
+pnpm test:coverage
 ```
 
-## Project Structure
+### Package-level
 
+```bash
+pnpm -C packages/web lint
+pnpm -C packages/web typecheck
+
+pnpm -C packages/admin lint
+pnpm -C packages/admin typecheck
+
+pnpm -C packages/core test
+pnpm -C packages/functions test
 ```
-faces-of-plants-1/
-├── infra/                    # SST infrastructure (API, database, frontend)
-│   ├── api.ts               # API Gateway + Lambda definitions
-│   ├── database.ts          # DynamoDB table definitions
-│   ├── frontend.ts          # Next.js + CloudFront + custom domain
-│   └── secrets.ts           # SST secrets management
+
+## Environment and Secrets
+
+### Local
+
+- Use `.env.example` as template for `.env.local`
+- GBIF is open-access and does not require an API key
+- LLM behavior is controlled by `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_ENDPOINT`, `LLM_MODEL`
+
+### SST Secrets (stage-specific)
+
+The infrastructure expects secrets for:
+
+- LLM API key
+- Auth secret
+- Google OAuth client ID/secret
+- GitHub OAuth client ID/secret
+- Admin invite sender email
+
+Use SST secret commands for each stage before deployment.
+
+## Deploy
+
+### Dev (default script)
+
+```bash
+pnpm deploy
+```
+
+### Staging / Production
+
+```bash
+pnpm exec sst deploy --stage staging
+pnpm exec sst deploy --stage production
+```
+
+Production uses retention-safe removal policy in `sst.config.ts`.
+
+## Repository Layout
+
+```text
+faces-of-plants/
+├── infra/
 ├── packages/
-│   ├── core/                # Shared types, GBIF client, services
-│   │   └── src/
-│   │       ├── types/       # TypeScript types (GBIFOccurrence, etc.)
-│   │       └── services/    # CacheService, RetryService, etc.
-│   ├── functions/           # Lambda handlers
-│   │   ├── api/             # query, species, collections, health
-│   │   ├── gbif/            # GBIF API client
-│   │   └── llm/             # Mistral AI proxy
-│   └── web/                 # Next.js frontend
-│       └── src/
-│           ├── app/         # Pages (maps, about, education, auth)
-│           ├── components/  # React components
-│           ├── context/     # Mode/theme context
-│           └── lib/         # Auth config, DynamoDB adapter
-├── DATA_PROVENANCE.md       # How we use GBIF data
-├── LICENSE                  # MIT License
-├── README.md                # This file
-└── .env.example             # Environment variables template
+│   ├── admin/
+│   ├── core/
+│   ├── functions/
+│   └── web/
+├── docs/
+├── scripts/
+├── DATA_PROVENANCE.md
+├── sst.config.ts
+└── README.md
 ```
 
-## Data Citation
+## Documentation
 
-When using data from Faces of Plants in publications, please cite the original GBIF datasets:
+- Getting started: `docs/getting-started.md`
+- Development guide: `docs/development.md`
+- Architecture details: `docs/architecture.md`
+- Deployment guide: `docs/deployment.md`
+- API reference: `docs/api-reference.md`
+- Data provenance and attribution: `DATA_PROVENANCE.md`
 
-> GBIF.org (2026) GBIF Occurrence Download. Available at: https://www.gbif.org
+## Data and Attribution
+
+This project integrates biodiversity data from GBIF, iNaturalist, and EOL.
+Respect source licenses and attribution requirements, and consult `DATA_PROVENANCE.md` for details.
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create a branch (`feature/...`)
+3. Commit with clear messages
+4. Open a pull request
 
 ## License
 
-This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
-
-## Acknowledgments
-
-- [GBIF](https://www.gbif.org) — Open biodiversity data
-- [iNaturalist](https://www.inaturalist.org) — Community observation data
-- [Encyclopedia of Life](https://eol.org) — Species information
-- [Mistral AI](https://mistral.ai) — Natural language processing
-
----
-
-Built with ❤️ for biodiversity research and education.
+MIT. See `LICENSE`.

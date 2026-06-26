@@ -32,17 +32,56 @@ export interface PlantIdentification {
 }
 
 /**
+ * Resize/compress image to fit Pl@ntNet API limits.
+ * Target: max 1500px on longest side, JPEG quality 0.8, under 500KB.
+ */
+async function compressImage(file: File): Promise<File> {
+  // If already small enough, send as-is
+  if (file.size <= 500 * 1024) return file;
+
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const maxDim = 1500;
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        const scale = maxDim / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas not supported')); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) { reject(new Error('Compression failed')); return; }
+          resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }));
+        },
+        'image/jpeg',
+        0.8
+      );
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Failed to load image')); };
+    img.src = url;
+  });
+}
+
+/**
  * Identify a plant from an image file.
  * Uses server-side proxy at /api/plantnet.
  */
 export async function identifyPlant(
   imageFile: File,
-  apiKey: string,
 ): Promise<PlantIdentification[]> {
+  const compressed = await compressImage(imageFile);
   const formData = new FormData();
-  formData.append('images', imageFile);
+  formData.append('images', compressed);
   formData.append('organs', 'auto');
-  formData.append('api-key', apiKey);
 
   const response = await fetch('/api/plantnet', {
     method: 'POST',
@@ -51,13 +90,20 @@ export async function identifyPlant(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => null);
-    throw new Error(errorData?.error || `Pl@ntNet API error: ${response.status}`);
+    const status = response.status;
+    if (status === 404) {
+      throw new Error('Nessuna pianta riconosciuta. Prova con un primo piano di foglie, fiori o frutti.');
+    }
+    if (status === 413) {
+      throw new Error('Immagine troppo grande. Prova con una foto più piccola.');
+    }
+    throw new Error(errorData?.error || `Pl@ntNet API error: ${status}`);
   }
 
   const data = await response.json();
 
   if (!data.results || data.results.length === 0) {
-    return [];
+    throw new Error('Nessuna corrispondenza trovata. Prova con un\'immagine più ravvicinata della pianta.');
   }
 
   return data.results.map((result: PlantNetResult) => ({

@@ -9,12 +9,15 @@ interface FrontendConfig {
   };
   authJsTable: any;
   loginHistoryTable: any;
+  systemSettingsTable: any;
+  searchLogsTable: any;
   secrets: {
     googleClientId: any;
     googleClientSecret: any;
     authSecret: any;
     githubClientId: any;
     githubClientSecret: any;
+    llmApiKey: any;
   };
   customDomain?: {
     domainName: string;
@@ -23,7 +26,7 @@ interface FrontendConfig {
   };
 }
 
-export function createFrontend({ stage, api, authJsTable, loginHistoryTable, secrets, customDomain }: FrontendConfig) {
+export function createFrontend({ stage, api, authJsTable, loginHistoryTable, systemSettingsTable, searchLogsTable, secrets, customDomain }: FrontendConfig) {
   // Next.js site (served via CloudFront)
   const nextjsProps: any = {
     path: "packages/web",
@@ -33,6 +36,8 @@ export function createFrontend({ stage, api, authJsTable, loginHistoryTable, sec
       NEXT_PUBLIC_API_URL: api.api.url,
       AUTH_JS_TABLE_NAME: authJsTable.name,
       LOGIN_HISTORY_TABLE_NAME: loginHistoryTable.name,
+      SYSTEM_SETTINGS_TABLE: systemSettingsTable.name,
+      SEARCH_LOGS_TABLE: searchLogsTable.name,
       AUTH_SECRET: secrets.authSecret.value,
       NEXTAUTH_URL: customDomain
         ? `https://${customDomain.domainName}`
@@ -42,8 +47,12 @@ export function createFrontend({ stage, api, authJsTable, loginHistoryTable, sec
       NEXT_PUBLIC_GOOGLE_CLIENT_ID: secrets.googleClientId.value,
       GITHUB_CLIENT_ID: secrets.githubClientId.value,
       GITHUB_CLIENT_SECRET: secrets.githubClientSecret.value,
+      LLM_PROVIDER: process.env.LLM_PROVIDER || "mistral",
+      LLM_API_KEY: secrets.llmApiKey.value,
+      LLM_ENDPOINT: process.env.LLM_ENDPOINT || "https://api.mistral.ai/v1",
+      LLM_MODEL: process.env.LLM_MODEL || "mistral-large-latest",
     },
-    link: [authJsTable, loginHistoryTable],
+    link: [authJsTable, loginHistoryTable, systemSettingsTable, searchLogsTable],
     buildCommand: "bash scripts/build-open-next.sh",
     server: {
       install: ["openid-client"],
@@ -62,6 +71,8 @@ export function createFrontend({ stage, api, authJsTable, loginHistoryTable, sec
           authJsTable.arn,
           authJsTable.arn.apply((arn: string) => `${arn}/*`),
           loginHistoryTable.arn,
+          systemSettingsTable.arn,
+          searchLogsTable.arn,
         ],
       },
     ],

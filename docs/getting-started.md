@@ -41,7 +41,7 @@ Want to run the project locally or contribute?
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-org/faces-of-plants.git
+git clone https://github.com/facesofplants/faces-of-plants.git
 cd faces-of-plants
 
 # 2. Install dependencies

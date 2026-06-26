@@ -282,8 +282,6 @@ export function getFeatureAccess(feature: string, userType: UserType): boolean {
       return config.anonymousAccess;
     case 'citizen':
       return config.citizenAccess;
-    case 'researcher':
-      return config.researcherAccess;
     case 'admin':
       return config.adminAccess;
     default:
@@ -306,8 +304,6 @@ export function getUpgradeMessage(feature: string, userType: UserType): string {
     return config.upgradeMessage.anonymous;
   } else if (userType === 'citizen') {
     return config.upgradeMessage.citizen;
-  } else if (userType === 'researcher' && config.upgradeMessage.researcher) {
-    return config.upgradeMessage.researcher;
   }
 
   return 'This feature is available in your plan!';

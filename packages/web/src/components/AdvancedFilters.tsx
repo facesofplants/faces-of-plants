@@ -85,16 +85,16 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
   if (compact) {
     return (
       <div className="flex flex-col h-full">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className={`text-lg font-bold ${textColors.primary} flex items-center gap-2`}>
-            <Funnel className="w-5 h-5" />
+        <div className="flex items-center justify-between mb-3">
+          <h2 className={`text-xs font-semibold ${textColors.primary} flex items-center gap-1.5`}>
+            <Funnel className="w-3.5 h-3.5" />
             Advanced Filters
           </h2>
           <button
             onClick={onClose}
-            className={`p-2 rounded-lg ${theme === 'light' ? 'hover:bg-gray-100' : 'hover:bg-gray-800'} transition-colors`}
+            className={`p-1 rounded-lg ${theme === 'light' ? 'hover:bg-gray-100' : 'hover:bg-gray-800'} transition-colors`}
           >
-            <X className={`w-5 h-5 ${textColors.primary}`} />
+            <X className={`w-3.5 h-3.5 ${textColors.primary}`} />
           </button>
         </div>
         <div className="space-y-4 overflow-y-auto" style={{ maxHeight: 220 }}>

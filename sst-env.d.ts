@@ -5,6 +5,10 @@
 
 declare module "sst" {
   export interface Resource {
+    "FACES_OF_PLANTS_PRODUCTION_SECRETS_ADMIN_INVITE_FROM_EMAIL": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "FACES_OF_PLANTS_PRODUCTION_SECRETS_AUTH_SECRET": {
       "type": "sst.sst.Secret"
       "value": string
@@ -28,6 +32,10 @@ declare module "sst" {
     "FACES_OF_PLANTS_PRODUCTION_SECRETS_LLM_API_KEY": {
       "type": "sst.sst.Secret"
       "value": string
+    }
+    "faces-of-plants-production-admin-site": {
+      "type": "sst.aws.Nextjs"
+      "url": string
     }
     "faces-of-plants-production-api-gateway": {
       "type": "sst.aws.ApiGatewayV2"
@@ -54,6 +62,14 @@ declare module "sst" {
       "type": "sst.aws.Dynamo"
     }
     "faces-of-plants-production-database-rate-limits": {
+      "name": string
+      "type": "sst.aws.Dynamo"
+    }
+    "faces-of-plants-production-database-search-logs": {
+      "name": string
+      "type": "sst.aws.Dynamo"
+    }
+    "faces-of-plants-production-database-system-settings": {
       "name": string
       "type": "sst.aws.Dynamo"
     }

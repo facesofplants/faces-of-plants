@@ -96,3 +96,9 @@ temp/
 .vercel
 
 archive/
+
+# Local AI/agent configuration and planning dirs (not for OSS repo)
+.gemini/
+.kiro/
+.sisyphus/
+.github/

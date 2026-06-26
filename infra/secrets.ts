@@ -33,6 +33,11 @@ export function createSecrets() {
     createResourceName("secrets", "github-client-secret").toUpperCase().replace(/-/g, "_")
   );
 
+  // From address used for automatic admin invite emails
+  const adminInviteFromEmail = new sst.Secret(
+    createResourceName("secrets", "admin-invite-from-email").toUpperCase().replace(/-/g, "_")
+  );
+
   return {
     llmApiKey,
     googleClientSecret,
@@ -40,5 +45,6 @@ export function createSecrets() {
     authSecret,
     githubClientId,
     githubClientSecret,
+    adminInviteFromEmail,
   };
 }

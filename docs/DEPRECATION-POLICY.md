@@ -189,7 +189,7 @@ For questions about API deprecation:
 
 - **Documentation**: https://docs.facesofplants.org
 - **Support**: support@facesofplants.org
-- **GitHub Issues**: https://github.com/facesofplants/issues
+- **GitHub Issues**: https://github.com/facesofplants/faces-of-plants/issues
 
 ## Changelog
 

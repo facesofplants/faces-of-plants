@@ -131,7 +131,7 @@ export default function AboutPage() {
               on GitHub.
             </p>
             <a
-              href="https://github.com/giuseppeserrecchia/faces-of-plants-1"
+              href="https://github.com/facesofplants/faces-of-plants"
               target="_blank"
               rel="noopener noreferrer"
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${

@@ -61,6 +61,7 @@ export interface ResistanceGrid {
 /**
  * Fetch land-use data from ESA WorldCover API.
  * Returns a simplified resistance grid for the given bounds.
+ * Uses occurrence density to improve corridors when real land-use is unavailable.
  */
 export async function fetchResistanceGrid(
   south: number,
@@ -68,13 +69,14 @@ export async function fetchResistanceGrid(
   west: number,
   east: number,
   targetResolutionKm: number = 2,
+  occurrences?: Array<{ lat: number; lng: number }>,
 ): Promise<ResistanceGrid> {
   // Try fetching real WorldCover data
   try {
     return await fetchWorldCoverData(south, north, west, east, targetResolutionKm);
   } catch {
-    // Fall back to synthetic grid based on coordinates
-    return generateSyntheticGrid(south, north, west, east, targetResolutionKm);
+    // Fall back to occurrence-density-based grid
+    return generateSyntheticGrid(south, north, west, east, targetResolutionKm, occurrences);
   }
 }
 
@@ -193,8 +195,9 @@ async function parseWorldCoverRaster(
 }
 
 /**
- * Generate a synthetic resistance grid when real data is unavailable.
- * Uses coordinate-based heuristics: water near coast, urban near cities, etc.
+ * Generate a resistance grid incorporating occurrence density.
+ * Areas with more observations get lower resistance (confirmed habitat).
+ * This creates natural-looking corridors that route through known habitat patches.
  */
 function generateSyntheticGrid(
   south: number,
@@ -202,6 +205,7 @@ function generateSyntheticGrid(
   west: number,
   east: number,
   resolutionKm: number,
+  occurrences?: Array<{ lat: number; lng: number }>,
 ): ResistanceGrid {
   const latRange = north - south;
   const lngRange = east - west;
@@ -215,6 +219,51 @@ function generateSyntheticGrid(
   const latStep = latRange / rows;
   const lngStep = lngRange / cols;
 
+  // Pre-compute occurrence density per grid cell
+  const densityGrid: number[][] = Array.from({ length: rows }, () => Array(cols).fill(0));
+  if (occurrences && occurrences.length > 0) {
+    for (const occ of occurrences) {
+      const row = Math.floor((occ.lat - south) / latStep);
+      const col = Math.floor((occ.lng - west) / lngStep);
+      if (row >= 0 && row < rows && col >= 0 && col < cols) {
+        densityGrid[row][col]++;
+      }
+    }
+    // Gaussian blur the density to create smooth gradients (3x3 kernel)
+    const blurred: number[][] = Array.from({ length: rows }, () => Array(cols).fill(0));
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        let sum = 0;
+        let count = 0;
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            const nr = r + dr;
+            const nc = c + dc;
+            if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+              sum += densityGrid[nr][nc];
+              count++;
+            }
+          }
+        }
+        blurred[r][c] = sum / count;
+      }
+    }
+    // Copy blurred back
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        densityGrid[r][c] = blurred[r][c];
+      }
+    }
+  }
+
+  // Find max density for normalization
+  let maxDensity = 0;
+  for (const row of densityGrid) {
+    for (const val of row) {
+      if (val > maxDensity) maxDensity = val;
+    }
+  }
+
   const cells: GridCell[][] = [];
 
   for (let row = 0; row < rows; row++) {
@@ -223,32 +272,41 @@ function generateSyntheticGrid(
       const lat = south + row * latStep + latStep / 2;
       const lng = west + col * lngStep + lngStep / 2;
 
-      // Simple heuristic: urban areas have higher resistance
-      // Use sine-based pseudo-random for consistent results
+      // Base resistance from pseudo-random landscape
       const pseudoRand = Math.sin(lat * 12.9898 + lng * 78.233) * 43758.5453;
       const noise = pseudoRand - Math.floor(pseudoRand);
 
       let landUse = 30; // Default: grassland
-      let resistance = 2;
+      let resistance = 5; // Higher base resistance
 
       if (noise > 0.95) {
-        landUse = 60; // High-density built-up
+        landUse = 60;
         resistance = 50;
       } else if (noise > 0.85) {
-        landUse = 50; // Low-density built-up
-        resistance = 3;
+        landUse = 50;
+        resistance = 15;
       } else if (noise > 0.7) {
-        landUse = 40; // Cropland
-        resistance = 3;
+        landUse = 40;
+        resistance = 8;
       } else if (noise > 0.3) {
-        landUse = 30; // Grassland
-        resistance = 2;
+        landUse = 30;
+        resistance = 5;
       } else if (noise > 0.1) {
-        landUse = 20; // Shrubland
-        resistance = 2;
+        landUse = 20;
+        resistance = 3;
       } else {
-        landUse = 10; // Forest
+        landUse = 10;
         resistance = 1;
+      }
+
+      // Reduce resistance based on occurrence density
+      // High density = confirmed habitat = very low resistance
+      if (maxDensity > 0) {
+        const densityFactor = densityGrid[row][col] / maxDensity; // 0..1
+        resistance = resistance * (1 - densityFactor * 0.9); // Up to 90% reduction
+        if (densityFactor > 0.1) {
+          landUse = 10; // Reclassify as forest/habitat
+        }
       }
 
       gridRow.push({
@@ -256,7 +314,7 @@ function generateSyntheticGrid(
         col,
         lat,
         lng,
-        resistance,
+        resistance: Math.max(0.1, resistance),
         landUse,
       });
     }

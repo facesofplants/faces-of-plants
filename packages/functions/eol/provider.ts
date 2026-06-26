@@ -11,6 +11,11 @@ import {
 
 import { EOLClient, type EOLSearchParams, type EOLSearchResultItem, type EOLPage } from './client';
 
+interface EOLProviderOptions {
+  apiKey?: string;
+  userAgent?: string;
+}
+
 export class EOLProvider implements DataSourceProvider {
   id = 'eol';
   name = 'Encyclopedia of Life';
@@ -189,16 +194,16 @@ export class EOLProvider implements DataSourceProvider {
 
   client: EOLDataSourceClient;
 
-  constructor() {
-    this.client = new EOLDataSourceClient();
+  constructor(options?: EOLProviderOptions) {
+    this.client = new EOLDataSourceClient(options);
   }
 }
 
 class EOLDataSourceClient implements DataSourceClient {
   private eolClient: EOLClient;
 
-  constructor() {
-    this.eolClient = new EOLClient();
+  constructor(options?: EOLProviderOptions) {
+    this.eolClient = new EOLClient({ apiKey: options?.apiKey, userAgent: options?.userAgent });
   }
 
   async search(params: SearchParams): Promise<SearchResult> {
@@ -207,7 +212,6 @@ class EOLDataSourceClient implements DataSourceClient {
     try {
       // Transform generic search params to EOL-specific params
       const eolParams = this.transformSearchParams(params);
-
       const result = await this.eolClient.searchPages(eolParams);
 
       // Get detailed information for each result

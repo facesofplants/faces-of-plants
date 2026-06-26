@@ -12,6 +12,8 @@ export interface NearbySpecies {
   image?: string;
   kingdom: string;
   family: string;
+  lat: number;
+  lng: number;
 }
 
 interface GeoPosition {
@@ -98,7 +100,7 @@ export async function searchNearbySpecies(
   const geometry = buildBoundingBoxWKT(position.lat, position.lng, radiusKm);
 
   const url = new URL('https://api.gbif.org/v1/occurrence/search');
-  url.searchParams.set('kingdom', 'Plantae');
+  url.searchParams.set('kingdomKey', '6');
   url.searchParams.set('hasCoordinate', 'true');
   url.searchParams.set('geometry', geometry);
   url.searchParams.set('limit', String(limit));
@@ -173,6 +175,8 @@ export async function searchNearbySpecies(
       image: info.image,
       kingdom: 'Plantae',
       family: info.family,
+      lat: info.centroidLat,
+      lng: info.centroidLng,
     });
   }
 

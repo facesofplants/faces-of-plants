@@ -96,19 +96,19 @@ export default function GBIFDataPage() {
       title: 'What is GBIF?',
       content: {
         overview:
-          "GBIF (Global Biodiversity Information Facility) is the world's largest network of biodiversity data. It provides free access to over 1.5 billion species occurrence records from around the globe.",
+          "GBIF (Global Biodiversity Information Facility) is the world's largest network of biodiversity data. It provides free access to over 3.8 billion species occurrence records from around the globe.",
         keyPoints: [
           'Free and open access to biodiversity data worldwide',
-          'Over 1.5 billion species occurrence records',
-          'Data from 1,700+ participating institutions',
+          'Over 3.8 billion species occurrence records',
+          'Data from 2,600+ data-publishing organizations',
           'Covers specimens, observations, and scientific literature',
           'Supports research, conservation, and policy decisions',
         ],
         statistics: {
-          records: '1.5+ billion',
-          species: '1.6+ million',
-          countries: '100+',
-          institutions: '1,700+',
+          records: '3.89+ billion',
+          species: '1.82+ million',
+          countries: '94',
+          institutions: '2,600+',
         },
       },
     },
@@ -417,15 +417,20 @@ export default function GBIFDataPage() {
                       <div className={`text-2xl font-bold ${accentColorClass}`}>
                         {currentSectionData.content.statistics.countries}
                       </div>
-                      <div className={`text-sm ${textColors.secondary}`}>Countries</div>
+                      <div className={`text-sm ${textColors.secondary}`}>Countries/Regions</div>
                     </div>
                     <div className="text-center">
                       <div className={`text-2xl font-bold ${accentColorClass}`}>
                         {currentSectionData.content.statistics.institutions}
                       </div>
-                      <div className={`text-sm ${textColors.secondary}`}>Institutions</div>
+                      <div className={`text-sm ${textColors.secondary}`}>
+                        Data Publishers (approx.)
+                      </div>
                     </div>
                   </div>
+                  <p className={`text-xs ${textColors.secondary} mt-4 text-center`}>
+                    Updated from GBIF API on 2026-06-26
+                  </p>
                 </div>
               </div>
             )}

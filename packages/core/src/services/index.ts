@@ -19,10 +19,15 @@ export type { UserTier, TierRateLimitConfig, UserContext } from './tieredRateLim
 export { ServiceRegistry } from './ServiceRegistry';
 export { ServiceExecutor } from './ServiceExecutor';
 export type { ServiceHandler } from './ServiceExecutor';
-export { LLMClient } from './llm';
+export { LLMClient, createLLMClientFromEnv } from './llm';
 export type { LLMRequest, LLMResponse } from './llm';
 export { MultiSourceQueryEngine } from './queryEngine';
 export type { MultiSourceQuery, MultiSourceResult, SourceExecutionResult } from './queryEngine';
+export { resolvePlantQuery, parseNaturalLanguageQuery, resolveViaGBIFMatch } from './plantNameResolver';
+export type { ResolvedPlantName, ParsedQuery } from './plantNameResolver';
+export { resolveLocalTaxonomy } from './localTaxonomyResolver';
+export type { LocalTaxonomyMatch } from './localTaxonomyResolver';
+export { resolveLocalTaxonomyFromEntries } from './localTaxonomyResolver';
 
 export { ErrorHandler, ErrorResponseBuilder, errorHandler } from './ErrorHandler';
 export type { ErrorContext } from './ErrorHandler';

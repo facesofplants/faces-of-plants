@@ -14,40 +14,25 @@ import React, { useState } from 'react';
 import { useMode } from '../context/ModeContext';
 
 import AuthButton from './AuthButton';
-import { UsageDisplay } from './UsageDisplay';
 
 export default function NavBar() {
-  const { mode, theme, setTheme } = useMode();
+  const { theme, setTheme } = useMode();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const isCitizen = mode === 'citizen';
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
 
   const navLinks = [
-    { href: '/maps', label: 'Maps', icon: <MapPin size={20} /> },
-    { href: '/education', label: 'Education', icon: <BookOpen size={20} /> },
+    { href: '/explore', label: 'Explore', icon: <MapPin size={20} /> },
+    { href: '/education', label: 'Learn', icon: <BookOpen size={20} /> },
     { href: '/about', label: 'About', icon: <Info size={20} /> },
   ];
 
-  // Theme-aware colors
   const navBg = theme === 'light' ? 'bg-white/90' : 'bg-black';
   const borderColor = theme === 'light' ? 'border-gray-200/50' : 'border-white/10';
-  const logoColor =
-    theme === 'light'
-      ? isCitizen
-        ? 'text-green-600'
-        : 'text-blue-600'
-      : isCitizen
-        ? 'text-green-300'
-        : 'text-blue-300';
-  const linkColor =
-    theme === 'light'
-      ? isCitizen
-        ? 'text-gray-700 hover:text-green-600'
-        : 'text-gray-700 hover:text-blue-600'
-      : isCitizen
-        ? 'text-green-100 hover:text-green-300'
-        : 'text-blue-100 hover:text-blue-300';
+  const logoColor = theme === 'light' ? 'text-green-600' : 'text-green-300';
+  const linkColor = theme === 'light'
+    ? 'text-gray-700 hover:text-green-600'
+    : 'text-green-100 hover:text-green-300';
 
   return (
     <nav className={`${navBg} backdrop-blur-lg border-b ${borderColor} sticky top-0 z-[9999]`}>
@@ -80,50 +65,32 @@ export default function NavBar() {
 
           {/* Desktop Controls */}
           <div className="hidden lg:flex items-center space-x-2 xl:space-x-4">
-            {/* Usage Display - show search usage as main indicator */}
-            <UsageDisplay action="search" variant="compact" />
-
-            {/* Theme Toggle */}
             <button
               onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
               className={`p-2 rounded-full transition-colors ${
-                theme === 'light'
-                  ? 'text-gray-600 hover:bg-gray-100'
-                  : 'text-gray-300 hover:bg-gray-800'
+                theme === 'light' ? 'text-gray-600 hover:bg-gray-100' : 'text-gray-300 hover:bg-gray-800'
               }`}
               title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
             >
               {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
-
-            {/* Profile Icon */}
             <AuthButton variant="default" />
           </div>
 
           {/* Mobile Controls */}
           <div className="lg:hidden flex items-center space-x-2">
-            {/* Theme Toggle */}
             <button
               onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
               className={`p-2 rounded-full transition-colors ${
-                theme === 'light'
-                  ? 'text-gray-600 hover:bg-gray-100'
-                  : 'text-gray-300 hover:bg-gray-800'
+                theme === 'light' ? 'text-gray-600 hover:bg-gray-100' : 'text-gray-300 hover:bg-gray-800'
               }`}
             >
               {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
             </button>
-
             <button
               onClick={toggleMobileMenu}
               className={`p-2 rounded-md transition-colors ${
-                theme === 'light'
-                  ? isCitizen
-                    ? 'text-green-600 hover:bg-green-50'
-                    : 'text-blue-600 hover:bg-blue-50'
-                  : isCitizen
-                    ? 'text-green-200 hover:bg-green-700/50'
-                    : 'text-blue-200 hover:bg-blue-700/50'
+                theme === 'light' ? 'text-green-600 hover:bg-green-50' : 'text-green-200 hover:bg-green-700/50'
               }`}
             >
               {isMobileMenuOpen ? <X size={24} /> : <List size={24} />}
@@ -134,11 +101,9 @@ export default function NavBar() {
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
           <div className="lg:hidden">
-            <div
-              className={`px-2 pt-2 pb-3 space-y-1 backdrop-blur-lg border-t ${
-                theme === 'light' ? 'bg-white/95 border-gray-200' : 'bg-black/95 border-white/10'
-              }`}
-            >
+            <div className={`px-2 pt-2 pb-3 space-y-1 backdrop-blur-lg border-t ${
+              theme === 'light' ? 'bg-white/95 border-gray-200' : 'bg-black/95 border-white/10'
+            }`}>
               {navLinks.map((link) => (
                 <Link
                   key={link.href}
@@ -146,28 +111,15 @@ export default function NavBar() {
                   onClick={() => setIsMobileMenuOpen(false)}
                   className={`flex items-center space-x-3 px-3 py-3 rounded-md text-base font-medium transition-all ${
                     theme === 'light'
-                      ? isCitizen
-                        ? 'text-gray-700 hover:bg-green-50 hover:text-green-600'
-                        : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600'
-                      : isCitizen
-                        ? 'text-green-100 hover:bg-green-700/30 hover:text-green-300'
-                        : 'text-blue-100 hover:bg-blue-700/30 hover:text-blue-300'
+                      ? 'text-gray-700 hover:bg-green-50 hover:text-green-600'
+                      : 'text-green-100 hover:bg-green-700/30 hover:text-green-300'
                   }`}
                 >
                   {link.icon}
                   <span>{link.label}</span>
                 </Link>
               ))}
-
-              {/* Mobile Auth Section */}
-              <div
-                className={`px-3 py-3 border-t ${
-                  theme === 'light' ? 'border-gray-200/50' : 'border-white/10'
-                }`}
-              >
-                <div className="mb-3">
-                  <UsageDisplay action="search" variant="detailed" />
-                </div>
+              <div className={`px-3 py-3 border-t ${theme === 'light' ? 'border-gray-200/50' : 'border-white/10'}`}>
                 <AuthButton variant="default" />
               </div>
             </div>

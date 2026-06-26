@@ -25,7 +25,7 @@ interface UserProfile {
   picture?: string | null;
   firstName?: string;
   lastName?: string;
-  userType: 'citizen' | 'researcher' | 'admin' | 'anonymous';
+  userType: 'citizen' | 'admin' | 'anonymous';
 }
 
 export default function ProfilePage() {
@@ -74,9 +74,8 @@ export default function ProfilePage() {
       : isCitizen ? 'border-green-700/30' : 'border-blue-700/30';
   const listTextColor = theme === 'light' ? 'text-gray-700' : 'text-gray-300';
 
-  const userTypeName = userType === 'researcher' ? 'Researcher' : userType === 'citizen' ? 'Citizen Scientist' : userType === 'admin' ? 'Administrator' : 'Anonymous';
+  const userTypeName = userType === 'citizen' ? 'Citizen Scientist' : userType === 'admin' ? 'Administrator' : 'Anonymous';
   const userTypeColor =
-    (userType as string) === 'researcher' ? 'text-blue-600' :
     (userType as string) === 'citizen' ? 'text-green-600' :
     (userType as string) === 'admin' ? 'text-purple-600' : 'text-gray-600';
 
@@ -131,8 +130,8 @@ export default function ProfilePage() {
             <div className={`${innerCardBg} rounded-lg p-4 border ${innerCardBorder}`}>
               <h4 className={`text-sm font-medium ${accentColorClass} mb-2`}>Interface Theme</h4>
               <p className={`text-sm ${listTextColor}`}>
-                <span className={`font-medium ${mode === 'citizen' ? 'text-green-600' : 'text-blue-600'}`}>
-                  {mode === 'citizen' ? 'Citizen' : 'Researcher'}
+                <span className={`font-medium text-green-600`}>
+                  Citizen
                 </span>
                 {' · '}
                 {theme === 'light' ? 'Light' : 'Dark'}

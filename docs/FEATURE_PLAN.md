@@ -524,7 +524,7 @@ Ogni tipo di terreno ha un punteggio di resistenza:
 
 ## Ordine di Implementazione Consigliato
 
-1. **Fase 1** (MVP per GBIF Challenge):
+1. **Fase 1** (MVP):
    - Geolocalizzazione locale
    - Scheda tecnica dual-use
    - Riconoscimento pianta (Pl@ntNet)

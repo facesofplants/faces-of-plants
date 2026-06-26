@@ -101,6 +101,26 @@ export function createDatabase() {
     }
   );
 
+  // System settings table for admin configuration (API keys, feature flags, etc.)
+  const systemSettingsTable = new sst.aws.Dynamo(
+    createResourceName("database", "system-settings"),
+    {
+      fields: {
+        settingKey: "string",
+        category: "string",
+      },
+      primaryIndex: { hashKey: "settingKey" },
+      globalIndexes: {
+        CategoryIndex: { hashKey: "category" },
+      },
+      transform: {
+        table: (args) => {
+          args.tags = getResourceTags();
+        },
+      },
+    }
+  );
+
   // Cache table with TTL for automatic expiration
   const cacheTable = new sst.aws.Dynamo(
     createResourceName("database", "cache"),
@@ -119,6 +139,24 @@ export function createDatabase() {
     }
   );
 
+  // Search query logs for admin analytics
+  const searchLogsTable = new sst.aws.Dynamo(
+    createResourceName("database", "search-logs"),
+    {
+      fields: {
+        pk: "string",          // "LOG" (single partition for scan)
+        timestamp: "string",   // ISO timestamp (sort key)
+      },
+      primaryIndex: { hashKey: "pk", rangeKey: "timestamp" },
+      ttl: "ttl", // Auto-expire old logs after 90 days
+      transform: {
+        table: (args) => {
+          args.tags = getResourceTags();
+        },
+      },
+    }
+  );
+
   return {
     userCollectionsTable,
     queryHistoryTable,
@@ -127,5 +165,7 @@ export function createDatabase() {
     loginHistoryTable,
     rateLimitsTable,
     cacheTable,
+    systemSettingsTable,
+    searchLogsTable,
   };
 }

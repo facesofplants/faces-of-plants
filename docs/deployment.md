@@ -42,7 +42,7 @@ This guide covers deployment options, configuration, and best practices for the 
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/your-org/faces-of-plants.git
+git clone https://github.com/facesofplants/faces-of-plants.git
 cd faces-of-plants
 ```
 

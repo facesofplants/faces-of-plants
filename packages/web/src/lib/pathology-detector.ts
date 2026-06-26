@@ -142,7 +142,9 @@ let session: ort.InferenceSession | null = null;
 async function loadModel(): Promise<ort.InferenceSession> {
   if (session) return session;
 
-  session = await ort.InferenceSession.create('/models/plant-pathology.onnx', {
+  const response = await fetch('/models/plant-pathology.onnx');
+  const modelBuffer = await response.arrayBuffer();
+  session = await ort.InferenceSession.create(modelBuffer, {
     executionProviders: ['wasm'],
     graphOptimizationLevel: 'all',
   });

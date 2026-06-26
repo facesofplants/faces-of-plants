@@ -38,11 +38,19 @@ export async function middleware(request: NextRequest) {
     });
   }
 
-  return NextResponse.next();
+  // For all page requests: set no-cache headers to prevent stale content
+  const response = NextResponse.next();
+  if (!path.startsWith('/_next/static') && !path.startsWith('/_next/image')) {
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    response.headers.set('CDN-Cache-Control', 'no-store');
+    response.headers.set('Pragma', 'no-cache');
+  }
+  return response;
 }
 
 export const config = {
   matcher: [
     '/api/protected/:path*',
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };

@@ -2,11 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 
-import {
-  detectPathology,
-  isModelAvailable,
-  type PathologyResult,
-} from '../lib/pathology-detector';
+import { isModelAvailable, type PathologyResult } from '../lib/pathology-detector';
 
 interface UsePathologyReturn {
   results: PathologyResult[];
@@ -23,8 +19,8 @@ export function usePathology(): UsePathologyReturn {
   const [error, setError] = useState<string | null>(null);
   const [modelReady, setModelReady] = useState(false);
   const detectingRef = useRef(false);
+  const workerRef = useRef<Worker | null>(null);
 
-  // Check model availability on first use
   const checkModel = useCallback(async () => {
     const available = await isModelAvailable();
     setModelReady(available);
@@ -41,7 +37,6 @@ export function usePathology(): UsePathologyReturn {
       setResults([]);
 
       try {
-        // Check model availability
         if (!modelReady) {
           const available = await checkModel();
           if (!available) {
@@ -51,7 +46,6 @@ export function usePathology(): UsePathologyReturn {
           }
         }
 
-        // Validate file
         if (!file.type.startsWith('image/')) {
           throw new Error('Please upload an image file (JPEG or PNG)');
         }
@@ -60,7 +54,35 @@ export function usePathology(): UsePathologyReturn {
           throw new Error('Image must be less than 10MB');
         }
 
-        const pathologyResults = await detectPathology(file, 5);
+        const imageData = await file.arrayBuffer();
+
+        const pathologyResults = await new Promise<PathologyResult[]>((resolve, reject) => {
+          const worker = new Worker(
+            new URL('../workers/pathology.worker.ts', import.meta.url),
+            { type: 'module' },
+          );
+          workerRef.current = worker;
+
+          worker.onmessage = (event) => {
+            const data = event.data;
+            if (data.type === 'result') {
+              resolve(data.results as PathologyResult[]);
+            } else if (data.type === 'error') {
+              reject(new Error(data.error));
+            }
+            worker.terminate();
+            workerRef.current = null;
+          };
+
+          worker.onerror = (err) => {
+            reject(new Error(err.message));
+            worker.terminate();
+            workerRef.current = null;
+          };
+
+          worker.postMessage({ type: 'detect', imageData, topK: 5 });
+        });
+
         setResults(pathologyResults);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Detection failed');
@@ -75,6 +97,10 @@ export function usePathology(): UsePathologyReturn {
   const reset = useCallback(() => {
     setResults([]);
     setError(null);
+    if (workerRef.current) {
+      workerRef.current.terminate();
+      workerRef.current = null;
+    }
   }, []);
 
   return { results, loading, error, modelReady, detect, reset };

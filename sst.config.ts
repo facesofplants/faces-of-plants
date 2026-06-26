@@ -40,6 +40,7 @@ export default {
     const { createSecrets } = await import("./infra/secrets");
     const { createApi } = await import("./infra/api");
     const { createFrontend } = await import("./infra/frontend");
+    const { createAdminFrontend } = await import("./infra/admin-frontend");
     const { createMonitoring } = await import("./infra/monitoring");
 
     // Create infrastructure modules with consistent naming
@@ -59,9 +60,22 @@ export default {
     api, 
     authJsTable: database.authJsTable, 
     loginHistoryTable: database.loginHistoryTable, 
+    systemSettingsTable: database.systemSettingsTable,
+    searchLogsTable: database.searchLogsTable,
     secrets,
     customDomain,
   });
+
+    // Admin console frontend
+    const adminFrontend = createAdminFrontend({
+      stage,
+      authJsTable: database.authJsTable,
+      systemSettingsTable: database.systemSettingsTable,
+      loginHistoryTable: database.loginHistoryTable,
+      searchLogsTable: database.searchLogsTable,
+      secrets,
+      customDomain,
+    });
     
     // Create monitoring infrastructure with CloudWatch alarms
     // Set ALARM_EMAIL environment variable to receive notifications
@@ -75,6 +89,7 @@ export default {
       stage,
       api: api.api.url,
       web: frontend.web.url,
+      admin: adminFrontend.admin.url,
       // Note: auth.identityPoolId removed - Cognito Identity Pool not needed
       tables: {
         userCollections: database.userCollectionsTable.name,

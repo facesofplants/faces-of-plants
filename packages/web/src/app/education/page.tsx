@@ -101,6 +101,27 @@ export default function EducationPage() {
     },
   ];
 
+  const quickAccessResources = [
+    {
+      id: 'interactive-tools',
+      title: 'Interactive Tools',
+      description: 'Hands-on tools to explore plant classification and data visualization',
+      icon: <Microscope className="w-4 h-4 mr-2" />,
+    },
+    {
+      id: 'glossary',
+      title: 'Glossary',
+      description: 'Comprehensive definitions of botanical and data science terms',
+      icon: <span className="mr-2">📖</span>,
+    },
+    {
+      id: 'video-tutorial',
+      title: 'Video Tutorial',
+      description: 'Step-by-step video guides for using research tools and understanding concepts',
+      icon: <span className="mr-2">🎥</span>,
+    },
+  ];
+
   return (
     <div className={`min-h-screen ${getBackgroundGradient(mode, theme)}`}>
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
@@ -112,8 +133,8 @@ export default function EducationPage() {
           </div>
           <p className={`text-lg ${textColors.secondary} max-w-4xl mx-auto mb-8`}>
             Discover the fascinating world of plant taxonomy, biodiversity data, and scientific
-            research. Learn at your own pace with interactive content designed for{' '}
-            {mode === 'citizen' ? 'curious nature enthusiasts' : 'researchers and scientists'}.
+            research. Learn at your own pace with interactive content designed for
+            curious nature enthusiasts.
           </p>
           <div
             className={`inline-flex items-center px-6 py-3 rounded-full ${theme === 'light' ? 'bg-gradient-to-r from-green-50 to-blue-50 border border-green-200' : 'bg-gradient-to-r from-green-900/30 to-blue-900/30 border border-green-700/30'} backdrop-blur-sm`}
@@ -217,26 +238,25 @@ export default function EducationPage() {
             Quick Access Resources
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className={`${innerCardBg} rounded-lg p-6 border ${innerCardBorder}`}>
-              <h4 className={`font-semibold ${accentColorClass} mb-2 flex items-center`}>
-                <Microscope className="w-4 h-4 mr-2" /> Interactive Tools
-              </h4>
-              <p className={`text-sm ${listTextColor}`}>
-                Hands-on tools to explore plant classification and data visualization
-              </p>
-            </div>
-            <div className={`${innerCardBg} rounded-lg p-6 border ${innerCardBorder}`}>
-              <h4 className={`font-semibold ${accentColorClass} mb-2`}>📖 Glossary</h4>
-              <p className={`text-sm ${listTextColor}`}>
-                Comprehensive definitions of botanical and data science terms
-              </p>
-            </div>
-            <div className={`${innerCardBg} rounded-lg p-6 border ${innerCardBorder}`}>
-              <h4 className={`font-semibold ${accentColorClass} mb-2`}>🎥 Video Tutorials</h4>
-              <p className={`text-sm ${listTextColor}`}>
-                Step-by-step video guides for using research tools and understanding concepts
-              </p>
-            </div>
+            {quickAccessResources.map((resource) => (
+              <Link href={`/education/${resource.id}`} key={resource.id}>
+                <div
+                  className={`${innerCardBg} rounded-lg p-6 border ${innerCardBorder} h-full hover:scale-[1.02] transition-all duration-300 cursor-pointer group`}
+                >
+                  <h4 className={`font-semibold ${accentColorClass} mb-2 flex items-center`}>
+                    {resource.icon}
+                    {resource.title}
+                  </h4>
+                  <p className={`text-sm ${listTextColor}`}>{resource.description}</p>
+                  <div
+                    className={`mt-4 inline-flex items-center text-sm ${accentColorClass} font-medium group-hover:translate-x-1 transition-transform duration-300`}
+                  >
+                    Open resource
+                    <ArrowRight className="w-4 h-4 ml-1" />
+                  </div>
+                </div>
+              </Link>
+            ))}
           </div>
         </div>
       </section>

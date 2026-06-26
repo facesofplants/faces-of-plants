@@ -25,7 +25,6 @@ export function PlantIdentifier({ onIdentified }: PlantIdentifierProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<PlantIdentification[]>([]);
-  const [apiKey, setApiKey] = useState('');
 
   const cardBg =
     theme === 'light' ? 'bg-white/70 border-gray-200/50' : 'bg-gray-900/50 border-gray-700/20';
@@ -49,14 +48,9 @@ export function PlantIdentifier({ onIdentified }: PlantIdentifierProps) {
     const dataUrl = await fileToDataURL(file);
     setPreview(dataUrl);
 
-    if (!apiKey) {
-      setError('Please enter your Pl@ntNet API key');
-      return;
-    }
-
     setLoading(true);
     try {
-      const identifications = await identifyPlant(file, apiKey);
+      const identifications = await identifyPlant(file);
       setResults(identifications);
       if (identifications.length > 0) {
         onIdentified?.(identifications[0]);
@@ -75,33 +69,6 @@ export function PlantIdentifier({ onIdentified }: PlantIdentifierProps) {
         Identify Plant
       </h3>
 
-      {/* API Key Input */}
-      <div className="mb-3">
-        <label className={`text-xs ${textColors.secondary} block mb-1`}>
-          Pl@ntNet API Key (free at{' '}
-          <a
-            href="https://my.plantnet.org/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline"
-          >
-            my.plantnet.org
-          </a>
-          )
-        </label>
-        <input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder="Enter your API key"
-          className={`w-full text-xs px-3 py-2 rounded-lg border ${
-            theme === 'light'
-              ? 'bg-white border-gray-200 text-gray-700'
-              : 'bg-gray-800 border-gray-600 text-gray-300'
-          }`}
-        />
-      </div>
-
       {/* Upload Button */}
       <input
         ref={fileInputRef}
@@ -112,7 +79,7 @@ export function PlantIdentifier({ onIdentified }: PlantIdentifierProps) {
       />
       <button
         onClick={() => fileInputRef.current?.click()}
-        disabled={loading || !apiKey}
+        disabled={loading}
         className={`w-full px-4 py-3 rounded-lg text-sm font-medium border-2 border-dashed transition-colors ${
           theme === 'light'
             ? 'border-gray-300 hover:border-green-400 text-gray-600 hover:text-green-600'

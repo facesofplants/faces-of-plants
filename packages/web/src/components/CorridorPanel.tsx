@@ -1,23 +1,35 @@
 'use client';
 
-import { GitPullRequest, Spinner, MapPin } from '@phosphor-icons/react';
+import { GitPullRequest, Spinner, MapPin, TreeStructure, Warning, ShieldCheck, Path, ArrowsOutCardinal } from '@phosphor-icons/react';
 import React, { useState, useEffect } from 'react';
 
 import { useCorridors } from '../hooks/useCorridors';
 import { useMode, getTextColors } from '../context/ModeContext';
 import type { GBIFOccurrence } from '@faces-of-plants/core/src/types';
+import type { SteppingStone, ConnectivityAssessment } from '../lib/corridor-analysis';
 
 interface CorridorPanelProps {
   occurrences: GBIFOccurrence[];
   bounds: { south: number; north: number; west: number; east: number } | null;
+  genus?: string;
+  onAreaClick?: (lat: number, lng: number) => void;
+  onZoomToAll?: () => void;
+  onResults?: (
+    corridors: { id: number; path: [number, number][]; resistance: number; lengthKm: number; viability?: any }[],
+    coreAreas: { id: number; lat: number; lng: number; occurrenceCount: number; protectedArea?: any }[],
+    steppingStones?: SteppingStone[],
+    connectivity?: ConnectivityAssessment | null,
+  ) => void;
 }
 
-export function CorridorPanel({ occurrences, bounds }: CorridorPanelProps) {
+export function CorridorPanel({ occurrences, bounds, genus: propGenus, onAreaClick, onZoomToAll, onResults }: CorridorPanelProps) {
   const { theme } = useMode();
   const textColors = getTextColors(theme);
   const {
     corridors,
     coreAreas,
+    steppingStones,
+    connectivity,
     loading,
     progress,
     error,
@@ -26,6 +38,19 @@ export function CorridorPanel({ occurrences, bounds }: CorridorPanelProps) {
   } = useCorridors();
 
   const [coreRadiusKm, setCoreRadiusKm] = useState(10);
+  const [genus, setGenus] = useState(propGenus || '');
+
+  // Update genus from prop
+  useEffect(() => {
+    if (propGenus) setGenus(propGenus);
+  }, [propGenus]);
+
+  // Propagate results to parent for map visualization
+  useEffect(() => {
+    if (onResults) {
+      onResults(corridors, coreAreas, steppingStones, connectivity);
+    }
+  }, [corridors, coreAreas, steppingStones, connectivity, onResults]);
 
   const accentColor =
     theme === 'light' ? 'text-blue-600' : 'text-blue-500';
@@ -35,7 +60,7 @@ export function CorridorPanel({ occurrences, bounds }: CorridorPanelProps) {
 
   const handleAnalyze = () => {
     if (!bounds) return;
-    analyze(occurrences, bounds, coreRadiusKm);
+    analyze(occurrences, bounds, coreRadiusKm, genus || undefined);
   };
 
   return (
@@ -59,6 +84,21 @@ export function CorridorPanel({ occurrences, bounds }: CorridorPanelProps) {
             value={coreRadiusKm}
             onChange={(e) => setCoreRadiusKm(Number(e.target.value))}
             className="w-full"
+          />
+        </div>
+
+        <div>
+          <label className={`text-xs font-medium ${textColors.secondary} block mb-1`}>
+            Genus (for dispersal assessment)
+          </label>
+          <input
+            type="text"
+            placeholder="e.g. Quercus, Pinus..."
+            value={genus}
+            onChange={(e) => setGenus(e.target.value)}
+            className={`w-full px-2 py-1.5 text-xs rounded-lg border ${
+              theme === 'light' ? 'border-gray-200 bg-white' : 'border-gray-700 bg-gray-800 text-white'
+            }`}
           />
         </div>
 
@@ -120,15 +160,78 @@ export function CorridorPanel({ occurrences, bounds }: CorridorPanelProps) {
       {/* Results */}
       {corridors.length > 0 && (
         <div className="space-y-3">
+          {/* Connectivity Assessment */}
+          {connectivity && (
+            <div className={`p-3 rounded-lg ${
+              connectivity.rating === 'well-connected' ? (theme === 'light' ? 'bg-green-50' : 'bg-green-900/30') :
+              connectivity.rating === 'partially-connected' ? (theme === 'light' ? 'bg-yellow-50' : 'bg-yellow-900/30') :
+              connectivity.rating === 'fragmented' ? (theme === 'light' ? 'bg-orange-50' : 'bg-orange-900/30') :
+              (theme === 'light' ? 'bg-red-50' : 'bg-red-900/30')
+            }`}>
+              <div className="flex items-center gap-2 mb-1">
+                <TreeStructure size={14} className={
+                  connectivity.rating === 'well-connected' ? 'text-green-600' :
+                  connectivity.rating === 'partially-connected' ? 'text-yellow-600' :
+                  connectivity.rating === 'fragmented' ? 'text-orange-600' :
+                  'text-red-600'
+                } />
+                <span className={`text-xs font-semibold ${
+                  connectivity.rating === 'well-connected' ? 'text-green-700' :
+                  connectivity.rating === 'partially-connected' ? 'text-yellow-700' :
+                  connectivity.rating === 'fragmented' ? 'text-orange-700' :
+                  'text-red-700'
+                }`}>
+                  Connectivity: {connectivity.score}% — {connectivity.rating.replace('-', ' ')}
+                </span>
+              </div>
+              <p className={`text-xs ${textColors.secondary}`}>{connectivity.summary}</p>
+              {connectivity.dispersalProfile.genus !== 'default' && (
+                <p className={`text-xs mt-1 ${textColors.secondary}`}>
+                  Dispersal: {connectivity.dispersalProfile.mechanism} — max {connectivity.dispersalProfile.maxDistanceKm} km
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Summary */}
-          <div className={`p-3 rounded-lg ${theme === 'light' ? 'bg-green-50' : 'bg-green-900/30'}`}>
-            <p className={`text-sm font-medium ${theme === 'light' ? 'text-green-700' : 'text-green-300'}`}>
-              Found {corridors.length} corridor{corridors.length !== 1 ? 's' : ''}
-            </p>
-            <p className={`text-xs ${textColors.secondary}`}>
-              {coreAreas.length} core habitat areas identified
-            </p>
+          <div className={`p-3 rounded-lg flex items-center justify-between ${theme === 'light' ? 'bg-green-50' : 'bg-green-900/30'}`}>
+            <div>
+              <p className={`text-sm font-medium ${theme === 'light' ? 'text-green-700' : 'text-green-300'}`}>
+                Found {corridors.length} corridor{corridors.length !== 1 ? 's' : ''}
+              </p>
+              <p className={`text-xs ${textColors.secondary}`}>
+                {coreAreas.length} core areas · {steppingStones.filter(s => s.withinRange).length} stepping stones
+              </p>
+            </div>
+            {onZoomToAll && (
+              <button
+                onClick={onZoomToAll}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  theme === 'light' ? 'hover:bg-green-100 text-green-600' : 'hover:bg-green-800/40 text-green-400'
+                }`}
+                title="Zoom to all areas"
+              >
+                <ArrowsOutCardinal size={16} />
+              </button>
+            )}
           </div>
+
+          {/* Isolated Populations Warning */}
+          {connectivity && connectivity.isolatedPopulations.length > 0 && (
+            <div className={`p-2 rounded-lg flex items-start gap-2 ${
+              theme === 'light' ? 'bg-red-50' : 'bg-red-900/20'
+            }`}>
+              <Warning size={14} className="text-red-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs font-medium text-red-600">
+                  {connectivity.isolatedPopulations.length} isolated population{connectivity.isolatedPopulations.length !== 1 ? 's' : ''}
+                </p>
+                <p className={`text-xs ${textColors.secondary}`}>
+                  At risk of genetic degradation. Habitat restoration needed.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Core Areas */}
           <div>
@@ -137,23 +240,25 @@ export function CorridorPanel({ occurrences, bounds }: CorridorPanelProps) {
             </h4>
             <div className="space-y-1">
               {coreAreas.map((area) => (
-                <div
+                <button
                   key={area.id}
-                  className={`flex items-center gap-2 p-2 rounded-lg text-xs ${
-                    theme === 'light' ? 'bg-gray-50' : 'bg-gray-800'
+                  onClick={() => onAreaClick?.(area.lat, area.lng)}
+                  className={`flex items-center gap-2 p-2 rounded-lg text-xs w-full text-left transition-colors ${
+                    theme === 'light' ? 'bg-gray-50 hover:bg-green-50' : 'bg-gray-800 hover:bg-gray-700'
                   }`}
                 >
-                  <MapPin size={12} className="text-green-500" />
+                  {area.protectedArea ? (
+                    <ShieldCheck size={12} className="text-emerald-500" />
+                  ) : (
+                    <MapPin size={12} className="text-green-500" />
+                  )}
                   <span className={textColors.primary}>
-                    Area {area.id + 1}
-                  </span>
-                  <span className={textColors.secondary}>
-                    ({area.lat.toFixed(2)}, {area.lng.toFixed(2)})
+                    {area.protectedArea ? area.protectedArea.name : `Area ${area.id + 1}`}
                   </span>
                   <span className={`ml-auto ${textColors.secondary}`}>
-                    {area.occurrenceCount} obs
+                    {area.occurrenceCount > 0 ? `${area.occurrenceCount} obs` : 'Protected'}
                   </span>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -164,11 +269,16 @@ export function CorridorPanel({ occurrences, bounds }: CorridorPanelProps) {
               Corridor Paths
             </h4>
             <div className="space-y-1 max-h-40 overflow-y-auto">
-              {corridors.map((c) => (
-                <div
+              {corridors.filter(c => !c.viability || c.viability.rating !== 'unlikely').map((c) => {
+                // path is [lng, lat] pairs — swap for onAreaClick(lat, lng)
+                const midIdx = Math.floor(c.path.length / 2);
+                const midPoint = c.path[midIdx];
+                return (
+                <button
                   key={c.id}
-                  className={`p-2 rounded-lg text-xs ${
-                    theme === 'light' ? 'bg-gray-50' : 'bg-gray-800'
+                  onClick={() => midPoint && onAreaClick?.(midPoint[1], midPoint[0])}
+                  className={`p-2 rounded-lg text-xs w-full text-left transition-colors ${
+                    theme === 'light' ? 'bg-gray-50 hover:bg-blue-50' : 'bg-gray-800 hover:bg-gray-700'
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -179,24 +289,42 @@ export function CorridorPanel({ occurrences, bounds }: CorridorPanelProps) {
                       {c.lengthKm.toFixed(1)} km
                     </span>
                   </div>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className={textColors.secondary}>
-                      {c.path.length} waypoints
-                    </span>
-                    <span className={`font-medium ${
-                      c.resistance < 50
-                        ? 'text-green-600'
-                        : c.resistance < 200
-                          ? 'text-yellow-600'
-                          : 'text-red-600'
-                    }`}>
-                      Resistance: {c.resistance.toFixed(0)}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                  {c.viability && (
+                    <div className="flex items-center justify-between mt-1">
+                      <span className={`font-medium text-xs ${
+                        c.viability.rating === 'optimal' ? 'text-green-600' :
+                        c.viability.rating === 'feasible' ? 'text-blue-600' :
+                        c.viability.rating === 'marginal' ? 'text-yellow-600' :
+                        'text-red-600'
+                      }`}>
+                        {c.viability.rating}
+                      </span>
+                      <span className={textColors.secondary}>
+                        R: {c.resistance.toFixed(0)}
+                      </span>
+                    </div>
+                  )}
+                </button>
+                );
+              })}
             </div>
           </div>
+
+          {/* Stepping Stones */}
+          {steppingStones.length > 0 && (
+            <div>
+              <h4 className={`text-xs font-medium ${textColors.secondary} mb-2 flex items-center gap-1`}>
+                <Path size={12} />
+                Stepping Stones ({steppingStones.filter(s => s.withinRange).length} active)
+              </h4>
+              <p className={`text-xs ${textColors.secondary}`}>
+                {steppingStones.filter(s => s.withinRange).length} isolated occurrences serve as intermediate habitat patches along corridors.
+                {steppingStones.filter(s => !s.withinRange).length > 0 && (
+                  <> {steppingStones.filter(s => !s.withinRange).length} are beyond stepping range.</>
+                )}
+              </p>
+            </div>
+          )}
         </div>
       )}
 

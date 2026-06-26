@@ -1,24 +1,39 @@
 import { RetryService } from '../../core/src/services';
 import { type GBIFSearchParams, type GBIFOccurrence } from '../../core/src/types';
 
+interface GBIFClientOptions {
+  baseUrl?: string;
+  userAgent?: string;
+}
+
 export class GBIFClient {
   private baseUrl: string;
   private retryService: RetryService;
   private userAgent: string;
 
-  constructor() {
-    this.baseUrl = process.env.GBIF_API_URL || 'https://api.gbif.org/v1';
+  constructor(options: GBIFClientOptions = {}) {
+    this.baseUrl = options.baseUrl || process.env.GBIF_API_URL || 'https://api.gbif.org/v1';
     this.retryService = new RetryService();
-    this.userAgent = process.env.GBIF_USER_AGENT || 'FaceOfPlants/0.4.1 (https://facesofplants.org; facesofplants@gmail.com)';
+    this.userAgent =
+      options.userAgent ||
+      process.env.GBIF_USER_AGENT ||
+      'FaceOfPlants/0.4.1 (https://facesofplants.org; facesofplants@gmail.com)';
   }
 
   private async fetchWithHeaders(url: string): Promise<Response> {
-    return fetch(url, {
-      headers: {
-        'User-Agent': this.userAgent,
-        'Accept': 'application/json',
-      },
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+      return await fetch(url, {
+        headers: {
+          'User-Agent': this.userAgent,
+          'Accept': 'application/json',
+        },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   async searchOccurrences(params: GBIFSearchParams): Promise<{
@@ -29,10 +44,10 @@ export class GBIFClient {
     return this.retryService.executeWithRetry(async () => {
       const searchParams = new URLSearchParams();
 
-      // Always filter for Plantae kingdom
+      // Always filter for Plantae kingdom (kingdomKey=6 is deterministic vs string match)
       const enhancedParams = {
         ...params,
-        kingdom: 'Plantae',
+        kingdomKey: 6,
       };
 
       Object.entries(enhancedParams).forEach(([key, value]) => {
@@ -48,7 +63,7 @@ export class GBIFClient {
 
       const requestUrl = `${this.baseUrl}/occurrence/search?${searchParams.toString()}`;
       console.log(`[GBIFClient] Fetching from URL: ${requestUrl}`);
-      console.log(`[GBIFClient] Filtering for Plantae kingdom only`);
+      console.log(`[GBIFClient] Filtering for Plantae kingdom only (kingdomKey=6)`);
 
       const response = await this.fetchWithHeaders(requestUrl);
 

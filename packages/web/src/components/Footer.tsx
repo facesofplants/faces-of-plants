@@ -5,13 +5,9 @@ import Link from 'next/link';
 import React from 'react';
 
 import { useMode } from '../context/ModeContext';
-import { useAccessControl } from '../hooks/useAccessControl';
-
-import { UpgradePrompt } from './UpgradePrompt';
 
 export function Footer() {
   const { theme } = useMode();
-  const { shouldShowUpgradePrompt } = useAccessControl();
 
   const footerBg = theme === 'light' ? 'bg-gray-900' : 'bg-gray-100';
   const textPrimary = theme === 'light' ? 'text-white' : 'text-gray-900';
@@ -21,15 +17,7 @@ export function Footer() {
   const linkColor = theme === 'light' ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900';
 
   return (
-    <>
-      {shouldShowUpgradePrompt() && (
-        <UpgradePrompt
-          message="Unlock unlimited access to all features"
-          variant="banner"
-          className="bg-gradient-to-r from-green-500 to-blue-500 text-white"
-        />
-      )}
-      <footer className={`${footerBg} mt-auto`}>
+    <footer className={`${footerBg} mt-auto`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             {/* Brand Section */}
@@ -59,7 +47,7 @@ export function Footer() {
             <div>
               <h4 className={`font-semibold ${textPrimary} mb-4`}>Explore</h4>
               <ul className={`space-y-2 text-sm ${textSecondary}`}>
-                <li><Link href="/maps" className={`${linkColor}`}>Interactive Map</Link></li>
+                <li><Link href="/explore" className={`${linkColor}`}>Explore</Link></li>
                 <li><Link href="/education" className={`${linkColor}`}>Education</Link></li>
                 <li><Link href="/about" className={`${linkColor}`}>About</Link></li>
                 <li><Link href="/about" className={`${linkColor}`}>GBIF Data Sources</Link></li>
@@ -72,7 +60,7 @@ export function Footer() {
               <ul className={`space-y-2 text-sm ${textSecondary}`}>
                 <li><a href="https://api.gbif.org" target="_blank" rel="noopener noreferrer" className={`${linkColor}`}>GBIF API Docs</a></li>
                 <li><a href="https://www.gbif.org/developer/summary" target="_blank" rel="noopener noreferrer" className={`${linkColor}`}>GBIF Developer Portal</a></li>
-                <li><a href="https://github.com/giuseppeserrecchia/faces-of-plants-1" target="_blank" rel="noopener noreferrer" className={`${linkColor}`}>Source Code</a></li>
+                <li><a href="https://github.com/facesofplants/faces-of-plants" target="_blank" rel="noopener noreferrer" className={`${linkColor}`}>Source Code</a></li>
                 <li><a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" className={`${linkColor}`}>CC BY 4.0 License</a></li>
               </ul>
             </div>
@@ -97,7 +85,6 @@ export function Footer() {
           </div>
         </div>
       </footer>
-    </>
   );
 }
 

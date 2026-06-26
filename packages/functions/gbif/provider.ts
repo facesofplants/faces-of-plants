@@ -15,6 +15,10 @@ import { type GBIFOccurrence, type GBIFSearchParams } from '../../core/src/types
 
 import { GBIFClient } from './client';
 
+interface GBIFProviderOptions {
+  userAgent?: string;
+}
+
 export class GBIFProvider implements DataSourceProvider {
   id = 'gbif';
   name = 'Global Biodiversity Information Facility';
@@ -181,8 +185,8 @@ export class GBIFProvider implements DataSourceProvider {
 
   client: GBIFDataSourceClient;
 
-  constructor(cacheService?: CacheService) {
-    this.client = new GBIFDataSourceClient(cacheService);
+  constructor(cacheService?: CacheService, options?: GBIFProviderOptions) {
+    this.client = new GBIFDataSourceClient(cacheService, options);
   }
 }
 
@@ -190,8 +194,8 @@ class GBIFDataSourceClient implements DataSourceClient {
   private gbifClient: GBIFClient;
   private cacheService?: CacheService;
 
-  constructor(cacheService?: CacheService) {
-    this.gbifClient = new GBIFClient();
+  constructor(cacheService?: CacheService, options?: GBIFProviderOptions) {
+    this.gbifClient = new GBIFClient({ userAgent: options?.userAgent });
     this.cacheService = cacheService;
   }
 
@@ -310,7 +314,7 @@ class GBIFDataSourceClient implements DataSourceClient {
 
   private transformSearchParams(params: SearchParams): GBIFSearchParams {
     const gbifParams: GBIFSearchParams = {
-      kingdom: 'Plantae', // Always filter for plants
+      kingdomKey: 6, // Always filter for plants (kingdomKey=6 is deterministic vs string match)
       hasCoordinate: true, // Default to true for map display
       limit: params.limit || 100,
       offset: params.offset || 0,

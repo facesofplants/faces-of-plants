@@ -1,4 +1,4 @@
-export type UserType = 'anonymous' | 'citizen' | 'researcher' | 'admin';
+export type UserType = 'anonymous' | 'citizen' | 'admin';
 
 export interface UserPreferences {
   theme?: 'light' | 'dark' | 'auto';
@@ -14,15 +14,6 @@ export interface UserPreferences {
     favoriteRegions?: string[];
     interestAreas?: string[];
     skillLevel?: 'beginner' | 'intermediate' | 'advanced';
-  };
-  researcher?: {
-    institution?: string;
-    researchAreas?: string[];
-    dataUsageGoals?: string[];
-    publicationPreferences?: {
-      citationStyle?: string;
-      includeGBIFAttribution?: boolean;
-    };
   };
   admin?: {
     dashboardPreferences?: {

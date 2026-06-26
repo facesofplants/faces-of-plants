@@ -1,12 +1,34 @@
 'use client';
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 
-type Mode = 'citizen' | 'researcher';
 type Theme = 'light' | 'dark';
 
+const STORAGE_KEY = 'fop-preferences';
+
+function loadTheme(): Theme {
+  if (typeof window === 'undefined') return 'light';
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return 'light';
+    const prefs = JSON.parse(raw);
+    return prefs.theme === 'dark' ? 'dark' : 'light';
+  } catch {
+    return 'light';
+  }
+}
+
+function persistTheme(theme: Theme): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const prefs = raw ? JSON.parse(raw) : {};
+    prefs.theme = theme;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+  } catch { /* ignore */ }
+}
+
 interface ModeContextProps {
-  mode: Mode;
-  setMode: (mode: Mode) => void;
+  mode: 'citizen';
   theme: Theme;
   setTheme: (theme: Theme) => void;
 }
@@ -14,25 +36,19 @@ interface ModeContextProps {
 const ModeContext = createContext<ModeContextProps | undefined>(undefined);
 
 export const ModeProvider = ({ children }: { children: ReactNode }) => {
-  const [mode, setMode] = useState<Mode>('citizen');
-  const [theme, setTheme] = useState<Theme>('light');
+  const [theme, setThemeState] = useState<Theme>('light');
 
-  // Sync mode with user type from authentication
   useEffect(() => {
-    // Import useAuth dynamically to avoid circular dependencies
-    // const syncModeWithUserType = async () => {
-    //   try {
-    //     const { useAuth } = await import('./AuthContext');
-    //     // This is a hack to get the current user type
-    //     // We'll need to create a proper sync mechanism
-    //   } catch (error) {
-    //     console.warn('Could not sync mode with user type:', error);
-    //   }
-    // };
+    setThemeState(loadTheme());
+  }, []);
+
+  const setTheme = useCallback((t: Theme) => {
+    setThemeState(t);
+    persistTheme(t);
   }, []);
 
   return (
-    <ModeContext.Provider value={{ mode, setMode, theme, setTheme }}>
+    <ModeContext.Provider value={{ mode: 'citizen', theme, setTheme }}>
       {children}
     </ModeContext.Provider>
   );
@@ -44,20 +60,12 @@ export const useMode = () => {
   return context;
 };
 
-// Helper function to get background gradients
-export const getBackgroundGradient = (mode: Mode, theme: Theme): string => {
-  if (theme === 'light') {
-    return mode === 'citizen'
-      ? 'bg-gradient-to-br from-green-50 via-blue-50 to-purple-50'
-      : 'bg-gradient-to-br from-blue-50 via-green-50 to-purple-50';
-  } else {
-    return mode === 'citizen'
-      ? 'bg-gradient-to-br from-emerald-900 via-slate-900 to-gray-900'
-      : 'bg-gradient-to-br from-blue-900 via-slate-900 to-gray-900';
-  }
+export const getBackgroundGradient = (_mode: 'citizen', theme: Theme): string => {
+  return theme === 'light'
+    ? 'bg-gradient-to-br from-green-50 via-blue-50 to-purple-50'
+    : 'bg-gradient-to-br from-emerald-900 via-slate-900 to-gray-900';
 };
 
-// Helper function to get text colors
 export const getTextColors = (theme: Theme) => {
   return {
     primary: theme === 'light' ? 'text-gray-900' : 'text-white',
@@ -66,7 +74,6 @@ export const getTextColors = (theme: Theme) => {
   };
 };
 
-// Helper function to get card backgrounds
 export const getCardBackground = (theme: Theme): string => {
   return theme === 'light' ? 'bg-white/70 border-white/30' : 'bg-gray-900/50 border-gray-700/20';
 };

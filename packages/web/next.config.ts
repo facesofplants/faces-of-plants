@@ -3,6 +3,34 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   transpilePackages: ['@faces-of-plants/core', '@faces-of-plants/functions'],
   eslint: { ignoreDuringBuilds: true },
+  redirects: async () => [
+    {
+      source: '/tools',
+      destination: '/explore',
+      permanent: true,
+    },
+    {
+      source: '/map',
+      destination: '/explore',
+      permanent: true,
+    },
+  ],
+  headers: async () => [
+    {
+      // Prevent browser from caching HTML pages - static assets are cache-busted via hashed filenames
+      source: '/:path((?!_next/static|_next/image|favicon).*)',
+      headers: [
+        {
+          key: 'Cache-Control',
+          value: 'no-cache, no-store, must-revalidate',
+        },
+        {
+          key: 'CDN-Cache-Control',
+          value: 'no-store',
+        },
+      ],
+    },
+  ],
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },

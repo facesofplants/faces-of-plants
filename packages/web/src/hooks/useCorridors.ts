@@ -2,13 +2,15 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 
-import type { Corridor, CoreArea } from '../lib/corridor-analysis';
+import type { Corridor, CoreArea, SteppingStone, ConnectivityAssessment } from '../lib/corridor-analysis';
 import type { ResistanceGrid } from '../lib/resistance-map';
 import type { GBIFOccurrence } from '@faces-of-plants/core/src/types';
 
 interface UseCorridorsReturn {
   corridors: Corridor[];
   coreAreas: CoreArea[];
+  steppingStones: SteppingStone[];
+  connectivity: ConnectivityAssessment | null;
   resistanceGrid: ResistanceGrid | null;
   loading: boolean;
   progress: string;
@@ -17,6 +19,7 @@ interface UseCorridorsReturn {
     occurrences: GBIFOccurrence[],
     bounds: { south: number; north: number; west: number; east: number },
     coreRadiusKm?: number,
+    genus?: string,
   ) => void;
   reset: () => void;
 }
@@ -24,6 +27,8 @@ interface UseCorridorsReturn {
 export function useCorridors(): UseCorridorsReturn {
   const [corridors, setCorridors] = useState<Corridor[]>([]);
   const [coreAreas, setCoreAreas] = useState<CoreArea[]>([]);
+  const [steppingStones, setSteppingStones] = useState<SteppingStone[]>([]);
+  const [connectivity, setConnectivity] = useState<ConnectivityAssessment | null>(null);
   const [resistanceGrid, setResistanceGrid] = useState<ResistanceGrid | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState('');
@@ -42,6 +47,7 @@ export function useCorridors(): UseCorridorsReturn {
       occurrences: GBIFOccurrence[],
       bounds: { south: number; north: number; west: number; east: number },
       coreRadiusKm: number = 10,
+      genus?: string,
     ) => {
       // Clean up previous worker
       workerRef.current?.terminate();
@@ -50,6 +56,8 @@ export function useCorridors(): UseCorridorsReturn {
       setError(null);
       setCorridors([]);
       setCoreAreas([]);
+      setSteppingStones([]);
+      setConnectivity(null);
       setResistanceGrid(null);
       setProgress('Starting analysis...');
 
@@ -71,6 +79,8 @@ export function useCorridors(): UseCorridorsReturn {
           case 'result':
             setCorridors(data.corridors);
             setCoreAreas(data.coreAreas);
+            setSteppingStones(data.steppingStones || []);
+            setConnectivity(data.connectivity || null);
             setResistanceGrid(data.resistanceGrid);
             setLoading(false);
             setProgress('');
@@ -107,6 +117,7 @@ export function useCorridors(): UseCorridorsReturn {
         occurrences: coords,
         bounds,
         coreRadiusKm,
+        genus,
       });
     },
     [],
@@ -116,6 +127,8 @@ export function useCorridors(): UseCorridorsReturn {
     workerRef.current?.terminate();
     setCorridors([]);
     setCoreAreas([]);
+    setSteppingStones([]);
+    setConnectivity(null);
     setResistanceGrid(null);
     setLoading(false);
     setProgress('');
@@ -125,6 +138,8 @@ export function useCorridors(): UseCorridorsReturn {
   return {
     corridors,
     coreAreas,
+    steppingStones,
+    connectivity,
     resistanceGrid,
     loading,
     progress,

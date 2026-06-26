@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
@@ -15,6 +15,7 @@
     "@aws-sdk/client-dynamodb": "^3.1069.0",
     "@aws-sdk/credential-provider-node": "^3.972.47",
     "@aws-sdk/lib-dynamodb": "^3.1057.0",
+    "@aws-sdk/util-dynamodb": "^3.709.0",
     "@faces-of-plants/core": "workspace:*",
     "@faces-of-plants/functions": "workspace:*",
     "@phosphor-icons/react": "^2.1.10",

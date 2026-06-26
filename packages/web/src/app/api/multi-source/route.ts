@@ -1,255 +1,121 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
+import { resolvePlantQuery } from '@faces-of-plants/core/src/services/plantNameResolver';
+import { ServiceRegistry } from '@faces-of-plants/core/src/services/registry';
 import { MultiSourceQueryEngine } from '@faces-of-plants/core/src/services/queryEngine';
-import { type DataSourceProvider, type DataSourceCapability } from '@faces-of-plants/core/src/services/types';
-import { serviceRegistry, initializeProviders } from '@faces-of-plants/functions/registry/setup';
 
-// Initialize the multi-source query engine
-const queryEngine = new MultiSourceQueryEngine(serviceRegistry as any);
+import { GBIFProvider } from '../../../../../functions/gbif/provider';
+import { iNaturalistProvider } from '../../../../../functions/inaturalist/provider';
+import { EOLProvider } from '../../../../../functions/eol/provider';
+import { getSystemSettings } from '../../../lib/system-settings';
 
-// Initialize providers once
-let initialized = false;
-async function ensureInitialized() {
-  if (!initialized) {
-    await initializeProviders();
-    initialized = true;
+// Initialize registry and engine (singleton pattern for serverless)
+let engine: MultiSourceQueryEngine | null = null;
+
+async function getEngine(): Promise<MultiSourceQueryEngine> {
+  const registry = ServiceRegistry.getInstance();
+  const settings = await getSystemSettings([
+    'api:gbif_user_agent',
+    'api:inaturalist_user_agent',
+    'api:eol',
+  ]);
+
+  const gbifUserAgent = settings['api:gbif_user_agent']?.trim() || undefined;
+  const inaturalistUserAgent = settings['api:inaturalist_user_agent']?.trim() || undefined;
+  const eolApiKey = settings['api:eol']?.trim() || undefined;
+
+  registry.unregister('gbif');
+  registry.unregister('inaturalist');
+  registry.unregister('eol');
+
+  registry.register(new GBIFProvider(undefined, { userAgent: gbifUserAgent }));
+  registry.register(new iNaturalistProvider({ userAgent: inaturalistUserAgent }));
+  registry.register(new EOLProvider({ apiKey: eolApiKey }));
+
+  if (!engine) {
+    engine = new MultiSourceQueryEngine(registry);
   }
+
+  console.log('[MULTI-SOURCE] Registry refreshed with system settings overrides');
+  return engine;
 }
 
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+
   try {
-    await ensureInitialized();
+    const { searchParams } = new URL(request.url);
+    const query = searchParams.get('q') || searchParams.get('species') || '';
+    const sources = searchParams.get('sources')?.split(',').filter(Boolean);
+    const limit = parseInt(searchParams.get('limit') || '50', 10);
+    const mergeStrategy = (searchParams.get('merge') || 'union') as 'union' | 'intersection' | 'priority';
 
-    const body = await request.json();
-    const { query, sources, filters = {}, options = {} } = body;
-
-    // Validate input
-    if (!query && !filters) {
+    if (!query) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Either query or filters must be provided',
-          data: null,
-        },
+        { success: false, error: 'Query parameter (q or species) is required' },
         { status: 400 },
       );
     }
 
-    // Build multi-source query
-    const multiSourceQuery = {
-      query,
-      sources,
-      filters,
-      options: {
-        maxResults: options.maxResults || 200,
-        timeout: options.timeout || 30000,
-        mergeStrategy: options.mergeStrategy || 'union',
-        deduplication: options.deduplication !== false,
-        requireAllSources: options.requireAllSources || false,
-      },
-    };
+    // Resolve the plant name
+    const resolved = await resolvePlantQuery(query);
+    const scientificName = resolved.plantName?.scientificName || query;
 
-    console.log('[MULTI-SOURCE] Executing query:', {
-      query: multiSourceQuery.query,
-      sources: multiSourceQuery.sources || 'all',
-      filterCount: Object.keys(multiSourceQuery.filters).length,
-      options: multiSourceQuery.options,
-    });
+    console.log(`[MULTI-SOURCE] Query: "${query}" → Resolved: "${scientificName}" (source: ${resolved.plantName?.source})`);
 
     // Execute multi-source query
-    const result = await queryEngine.execute(multiSourceQuery);
-
-    // Log execution summary
-    console.log('[MULTI-SOURCE] Query completed:', {
-      totalResults: result.results.length,
-      sourcesQueried: result.metadata.sourcesQueried,
-      sourcesSuccessful: result.metadata.sourcesSuccessful,
-      executionTime: result.metadata.executionTime,
-      deduplicationApplied: result.metadata.deduplicationApplied,
+    const queryEngine = await getEngine();
+    const result = await queryEngine.execute({
+      query: scientificName,
+      sources,
+      filters: {
+        hasCoordinate: true,
+        ...(resolved.country ? { country: resolved.country } : {}),
+      },
+      options: {
+        maxResults: limit,
+        timeout: 15000,
+        mergeStrategy,
+        deduplication: true,
+      },
     });
+
+    const executionTime = Date.now() - startTime;
+
+    console.log(`[MULTI-SOURCE] Completed in ${executionTime}ms: ${result.metadata.sourcesSuccessful}/${result.metadata.sourcesQueried} sources, ${result.results.length} results`);
 
     return NextResponse.json({
       success: true,
-      data: result,
+      data: {
+        results: result.results,
+        totalCount: result.metadata.totalCount,
+        sources: result.sources.map((s) => ({
+          source: s.source,
+          success: s.success,
+          count: s.count,
+          executionTime: s.executionTime,
+          error: s.error,
+        })),
+        metadata: {
+          ...result.metadata,
+          resolver: {
+            originalQuery: query,
+            resolvedName: scientificName,
+            source: resolved.plantName?.source,
+            country: resolved.country,
+          },
+        },
+      },
     });
   } catch (error) {
     console.error('[MULTI-SOURCE] Error:', error);
-
     return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
-        data: null,
-      },
+      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 },
     );
   }
 }
 
-// Add GET method for simple search queries
-export async function GET(request: NextRequest) {
-  try {
-    await ensureInitialized();
-
-    const { searchParams } = new URL(request.url);
-    const action = searchParams.get('action');
-
-    // Handle different actions
-    switch (action) {
-      case 'sources':
-        return handleGetSources();
-      case 'health':
-        return handleHealthCheck();
-      case 'stats':
-        return handleGetStats();
-      case 'info':
-        return handleGetInfo();
-      default:
-        // Default to simple search
-        return handleGetSearch(searchParams);
-    }
-  } catch (error) {
-    console.error('[MULTI-SOURCE] GET Error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to handle request',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 },
-    );
-  }
-}
-
-async function handleGetSearch(searchParams: URLSearchParams) {
-  const query = searchParams.get('query');
-  const sources = searchParams.get('sources')?.split(',') || [];
-  const limit = parseInt(searchParams.get('limit') || '50');
-  const offset = parseInt(searchParams.get('offset') || '0');
-
-  if (!query) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Query parameter is required for search',
-      },
-      { status: 400 },
-    );
-  }
-
-  const multiSourceQuery = {
-    query,
-    sources: sources.length > 0 ? sources : undefined,
-    filters: {},
-    options: {
-      maxResults: limit,
-      timeout: 30000,
-      mergeStrategy: 'union' as const,
-      deduplication: true,
-      requireAllSources: false,
-    },
-  };
-
-  console.log('[MULTI-SOURCE] GET Search:', {
-    query: multiSourceQuery.query,
-    sources: multiSourceQuery.sources || 'all',
-    limit,
-    offset,
-  });
-
-  const result = await queryEngine.execute(multiSourceQuery);
-
-  // Apply offset/limit to results
-  const paginatedResults = result.results.slice(offset, offset + limit);
-
-  return NextResponse.json({
-    success: true,
-    data: {
-      ...result,
-      results: paginatedResults,
-      pagination: {
-        offset,
-        limit,
-        total: result.results.length,
-        hasMore: offset + limit < result.results.length,
-      },
-    },
-  });
-}
-
-async function handleGetSources() {
-  const providers = serviceRegistry.getProviders();
-
-  return NextResponse.json({
-    success: true,
-    data: {
-      sources: providers.map((p: DataSourceProvider) => ({
-        id: p.id,
-        name: p.name,
-        version: p.version,
-        baseUrl: p.baseUrl,
-        capabilities: p.capabilities.map((c: DataSourceCapability) => ({
-          type: c.type,
-          operations: c.operations.map((op: { name: string }) => op.name),
-          filters: c.filters.map((f: { name: string }) => f.name),
-        })),
-        rateLimit: p.rateLimit,
-      })),
-      totalSources: providers.length,
-    },
-  });
-}
-
-async function handleHealthCheck() {
-  console.log('[MULTI-SOURCE] Performing health check...');
-
-  const healthStatus = await serviceRegistry.healthCheck();
-  const registryInfo = serviceRegistry.getRegistryInfo();
-
-  return NextResponse.json({
-    success: true,
-    data: {
-      overall: {
-        status:
-          registryInfo.healthyProviders === registryInfo.totalProviders ? 'healthy' : 'degraded',
-        totalProviders: registryInfo.totalProviders,
-        healthyProviders: registryInfo.healthyProviders,
-        lastCheck: registryInfo.lastHealthCheck,
-      },
-      sources: healthStatus,
-    },
-  });
-}
-
-async function handleGetStats() {
-  const stats = serviceRegistry.getAllProviderStats();
-  const registryInfo = serviceRegistry.getRegistryInfo();
-
-  return NextResponse.json({
-    success: true,
-    data: {
-      registry: registryInfo,
-      providers: stats,
-    },
-  });
-}
-
-async function handleGetInfo() {
-  const registryInfo = serviceRegistry.getRegistryInfo();
-
-  return NextResponse.json({
-    success: true,
-    data: {
-      name: 'Multi-Source Biodiversity Data API',
-      version: '1.0.0',
-      description: 'Unified API for querying multiple biodiversity data sources',
-      registry: registryInfo,
-      endpoints: {
-        query: 'POST /api/multi-source',
-        sources: 'GET /api/multi-source?action=sources',
-        health: 'GET /api/multi-source?action=health',
-        stats: 'GET /api/multi-source?action=stats',
-      },
-    },
-  });
+export async function POST(request: NextRequest) {
+  return GET(request);
 }

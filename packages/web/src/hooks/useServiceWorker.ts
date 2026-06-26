@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 
 /**
- * Register the service worker for offline caching.
+ * Remove legacy service workers and their caches.
  */
 export function useServiceWorker() {
   useEffect(() => {
@@ -11,17 +11,17 @@ export function useServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
 
     navigator.serviceWorker
-      .register('/sw.js')
-      .then((registration) => {
-        console.log('[SW] Registered:', registration.scope);
-
-        // Check for updates periodically
-        setInterval(() => {
-          registration.update();
-        }, 60 * 60 * 1000); // Every hour
+      .getRegistrations()
+      .then(async (registrations) => {
+        await Promise.all(registrations.map((registration) => registration.unregister()));
+        if ('caches' in window) {
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
+        }
+        console.log('[SW] Cleared legacy service workers and caches');
       })
       .catch((err) => {
-        console.warn('[SW] Registration failed:', err);
+        console.warn('[SW] Cleanup failed:', err);
       });
   }, []);
 }

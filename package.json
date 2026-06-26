@@ -1,6 +1,6 @@
 {
   "name": "faces-of-plants",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -23,7 +23,8 @@
     "test:core": "pnpm --filter @faces-of-plants/core test",
     "test:functions": "pnpm --filter @faces-of-plants/functions test",
     "test:watch": "pnpm --filter @faces-of-plants/core test:watch",
-    "test:coverage": "pnpm --filter @faces-of-plants/core test:coverage"
+    "test:coverage": "pnpm --filter @faces-of-plants/core test:coverage",
+    "snapshot:taxonomy": "node scripts/snapshot-gbif-taxonomy.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

@@ -159,13 +159,21 @@ export interface EOLHealthStatus {
 
 import { RetryService } from '../../core/src/services';
 
+interface EOLClientOptions {
+  apiKey?: string;
+  userAgent?: string;
+}
+
 export class EOLClient {
   private baseUrl = 'https://eol.org/api';
-  private userAgent = 'faces-of-plants/1.0.0';
+  private userAgent: string;
+  private apiKey?: string;
   private retryService: RetryService;
 
-  constructor(private apiKey?: string) {
+  constructor(options: EOLClientOptions = {}) {
     this.retryService = new RetryService();
+    this.apiKey = options.apiKey;
+    this.userAgent = options.userAgent || process.env.EOL_USER_AGENT || 'faces-of-plants/1.0.0';
   }
 
   async searchPages(params: EOLSearchParams): Promise<EOLSearchResult> {
@@ -197,6 +205,9 @@ export class EOLClient {
       }
       if (params.cache_ttl) {
         url.searchParams.append('cache_ttl', params.cache_ttl.toString());
+      }
+      if (this.apiKey) {
+        url.searchParams.append('key', this.apiKey);
       }
 
       try {
@@ -287,6 +298,9 @@ export class EOLClient {
       }
       if (params.cache_ttl) {
         url.searchParams.append('cache_ttl', params.cache_ttl.toString());
+      }
+      if (this.apiKey) {
+        url.searchParams.append('key', this.apiKey);
       }
 
       try {

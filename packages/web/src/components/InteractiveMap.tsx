@@ -5,9 +5,6 @@ import {
   Globe,
   Mountains,
   Planet,
-  Funnel,
-  CirclesFour,
-  ChartBar,
   Clock,
   ArrowsOutSimple,
   X,
@@ -15,7 +12,7 @@ import {
 import { Icon, divIcon, icon as leafletIcon } from 'leaflet';
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvent } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker, useMap, useMapEvent } from 'react-leaflet';
 
 import type { GBIFOccurrence } from '@faces-of-plants/core/src/types';
 
@@ -60,6 +57,10 @@ interface InteractiveMapProps {
   onShowTemporalSliderChange?: (show: boolean) => void;
   onBoundsChange?: (bbox: [[number, number], [number, number]]) => void;
   loading?: boolean;
+  corridors?: { id: number; path: [number, number][]; resistance: number; lengthKm: number }[];
+  coreAreas?: { id: number; lat: number; lng: number; occurrenceCount: number; protectedArea?: { name: string; designationType: string } }[];
+  steppingStones?: { lat: number; lng: number; distanceToCorridorKm: number; withinRange: boolean }[];
+  suggestedBounds?: { south: number; north: number; west: number; east: number } | null;
 }
 
 // Custom Zoom Control Component
@@ -75,6 +76,33 @@ const MapInstanceCapture = ({ setMapInstance }: { setMapInstance: (map: L.Map) =
 
   return null;
 };
+
+// Smooth a polyline path using Chaikin's corner-cutting algorithm
+// Makes grid-aligned A* paths look like natural ecological corridors
+function smoothPath(points: [number, number][], iterations: number = 2): [number, number][] {
+  if (points.length < 3) return points;
+
+  let result = points;
+  for (let iter = 0; iter < iterations; iter++) {
+    const smoothed: [number, number][] = [result[0]]; // Keep first point
+    for (let i = 0; i < result.length - 1; i++) {
+      const p0 = result[i];
+      const p1 = result[i + 1];
+      // Chaikin: 25% and 75% interpolation
+      smoothed.push([
+        p0[0] * 0.75 + p1[0] * 0.25,
+        p0[1] * 0.75 + p1[1] * 0.25,
+      ]);
+      smoothed.push([
+        p0[0] * 0.25 + p1[0] * 0.75,
+        p0[1] * 0.25 + p1[1] * 0.75,
+      ]);
+    }
+    smoothed.push(result[result.length - 1]); // Keep last point
+    result = smoothed;
+  }
+  return result;
+}
 
 // Simple Heatmap Component with optimized rendering
 const SimpleHeatmapLayer = ({ points }: { points: [number, number, number?][] }) => {
@@ -325,6 +353,12 @@ interface InteractiveMapProps {
   showTemporalSlider?: boolean;
   onShowTemporalSliderChange?: (show: boolean) => void;
   onBoundsChange?: (bounds: [[number, number], [number, number]]) => void;
+  corridors?: { id: number; path: [number, number][]; resistance: number; lengthKm: number }[];
+  coreAreas?: { id: number; lat: number; lng: number; occurrenceCount: number; protectedArea?: { name: string; designationType: string } }[];
+  steppingStones?: { lat: number; lng: number; distanceToCorridorKm: number; withinRange: boolean }[];
+  suggestedBounds?: { south: number; north: number; west: number; east: number } | null;
+  flyToPoint?: { lat: number; lng: number; zoom?: number } | null;
+  highlightedPoint?: { lat: number; lng: number; label?: string; image?: string } | null;
 }
 
 // Export functions
@@ -517,15 +551,64 @@ export default function InteractiveMap({
   onShowTemporalSliderChange,
   onBoundsChange,
   loading = false,
+  corridors = [],
+  coreAreas = [],
+  steppingStones = [],
+  suggestedBounds,
+  flyToPoint,
+  highlightedPoint,
 }: InteractiveMapProps) {
   const [isClient, setIsClient] = useState(false);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
-  const [mapLayer, setMapLayer] = useState<'standard' | 'terrain' | 'satellite'>('standard');
+  const [mapLayer, setMapLayerState] = useState<'standard' | 'terrain' | 'satellite'>('satellite');
+
+  // Persist map layer preference
+  const setMapLayer = (layer: 'standard' | 'terrain' | 'satellite') => {
+    setMapLayerState(layer);
+    try {
+      const raw = localStorage.getItem('fop-preferences');
+      const prefs = raw ? JSON.parse(raw) : {};
+      prefs.mapLayer = layer;
+      localStorage.setItem('fop-preferences', JSON.stringify(prefs));
+    } catch { /* ignore */ }
+  };
 
   // Ensure map only renders on client
   useEffect(() => {
     setIsClient(true);
+    // Load saved map layer preference
+    try {
+      const raw = localStorage.getItem('fop-preferences');
+      if (raw) {
+        const prefs = JSON.parse(raw);
+        if (prefs.mapLayer && ['standard', 'terrain', 'satellite'].includes(prefs.mapLayer)) {
+          setMapLayerState(prefs.mapLayer);
+        }
+      }
+    } catch { /* ignore */ }
   }, []);
+
+  // Fly to suggested bounds when LLM extracts geographic info
+  useEffect(() => {
+    if (mapInstance && suggestedBounds) {
+      const { south, north, west, east } = suggestedBounds;
+      mapInstance.flyToBounds(
+        [[south, west], [north, east]],
+        { padding: [50, 50], maxZoom: 10, animate: true, duration: 1.0, easeLinearity: 0.5 }
+      );
+    }
+  }, [mapInstance, suggestedBounds]);
+
+  // Fly to a specific point (e.g. when user clicks a core area)
+  useEffect(() => {
+    if (mapInstance && flyToPoint) {
+      mapInstance.flyTo(
+        [flyToPoint.lat, flyToPoint.lng],
+        flyToPoint.zoom ?? 12,
+        { animate: true, duration: 0.8 }
+      );
+    }
+  }, [mapInstance, flyToPoint]);
 
   // Map layer configurations
   const mapLayers = {
@@ -620,7 +703,6 @@ export default function InteractiveMap({
     onBoundsChange: ((bounds: [[number, number], [number, number]]) => void) | undefined,
   ) {
     const lastBoundsRef = React.useRef<string | null>(null);
-    const ignoreNextRef = React.useRef(false);
     const debounceTimeout = React.useRef<NodeJS.Timeout | null>(null);
     const onBoundsChangeRef = React.useRef(onBoundsChange);
     React.useEffect(() => {
@@ -628,21 +710,18 @@ export default function InteractiveMap({
     }, [onBoundsChange]);
 
     const handleBoundsChange = React.useCallback((map: L.Map) => {
-      if (ignoreNextRef.current) {
-        ignoreNextRef.current = false;
-        return;
-      }
       const bounds = map.getBounds();
       const sw: [number, number] = [bounds.getSouthWest().lat, bounds.getSouthWest().lng];
       const ne: [number, number] = [bounds.getNorthEast().lat, bounds.getNorthEast().lng];
-      const boundsStr = `${sw[0]},${sw[1]},${ne[0]},${ne[1]}`;
+      const boundsStr = `${sw[0].toFixed(4)},${sw[1].toFixed(4)},${ne[0].toFixed(4)},${ne[1].toFixed(4)}`;
       if (lastBoundsRef.current !== boundsStr) {
         lastBoundsRef.current = boundsStr;
         if (onBoundsChangeRef.current) {
+          // Debounce: only report after map stops moving for 800ms
           if (debounceTimeout.current) {clearTimeout(debounceTimeout.current);}
           debounceTimeout.current = setTimeout(() => {
             onBoundsChangeRef.current && onBoundsChangeRef.current([sw, ne]);
-          }, 100);
+          }, 800);
         }
       }
     }, []);
@@ -650,20 +729,7 @@ export default function InteractiveMap({
     useMapEvent('moveend', (e) => {
       handleBoundsChange(e.target);
     });
-    useMapEvent('zoomend', (e) => {
-      handleBoundsChange(e.target);
-    });
-    useMapEvent('movestart', () => {
-      if (
-        typeof window !== 'undefined' &&
-        document.activeElement &&
-        document.activeElement.tagName === 'BODY'
-      ) {
-        ignoreNextRef.current = false;
-      } else {
-        ignoreNextRef.current = true;
-      }
-    });
+
     React.useEffect(() => {
       return () => {
         if (debounceTimeout.current) {clearTimeout(debounceTimeout.current);}
@@ -690,204 +756,74 @@ export default function InteractiveMap({
   }
 
   return (
-    <div className="relative z-10">
-      {/* Top-left controls area */}
-      <div className="absolute top-4 left-4 z-40 flex items-start space-x-2">
-        {/* Map Layer Switcher - vertical */}
-        <div className="flex flex-col space-y-1">
+    <div className="relative z-10 h-full">
+      {/* Map Layer Switcher - bottom-left, Google Maps style with thumbnails */}
+      <div className="absolute bottom-8 left-4 z-50 group">
+        {/* Collapsed: show current layer thumbnail */}
+        <div className="relative">
           <button
-            onClick={() => setMapLayer('standard')}
-            className={`flex items-center justify-center w-12 h-12 rounded-lg transition-colors shadow-lg border ${
-              mapLayer === 'standard'
-                ? 'bg-blue-500 text-white border-blue-600'
-                : 'bg-white/90 text-gray-700 hover:bg-gray-100 border-gray-200 backdrop-blur-sm'
-            }`}
-            title="Standard Map"
+            className="w-[40px] h-[40px] rounded-lg shadow-lg border-2 border-white overflow-hidden cursor-pointer hover:shadow-xl transition-shadow group-hover:opacity-0 group-hover:pointer-events-none"
+            title={mapLayer === 'standard' ? 'Map' : mapLayer === 'terrain' ? 'Terrain' : 'Satellite'}
           >
-            <Globe size={20} />
-          </button>
-          <button
-            onClick={() => setMapLayer('terrain')}
-            className={`flex items-center justify-center w-12 h-12 rounded-lg transition-colors shadow-lg border ${
-              mapLayer === 'terrain'
-                ? 'bg-blue-500 text-white border-blue-600'
-                : 'bg-white/90 text-gray-700 hover:bg-gray-100 border-gray-200 backdrop-blur-sm'
-            }`}
-            title="Terrain Map"
-          >
-            <Mountains size={20} />
-          </button>
-          <button
-            onClick={() => setMapLayer('satellite')}
-            className={`flex items-center justify-center w-12 h-12 rounded-lg transition-colors shadow-lg border ${
-              mapLayer === 'satellite'
-                ? 'bg-blue-500 text-white border-blue-600'
-                : 'bg-white/90 text-gray-700 hover:bg-gray-100 border-gray-200 backdrop-blur-sm'
-            }`}
-            title="Satellite Map"
-          >
-            <Planet size={20} />
-          </button>
-        </div>
-
-        {/* Map Controls - horizontal */}
-        <div className="flex items-center space-x-1 relative">
-          <button
-            onClick={() => onShowAdvancedFilters && onShowAdvancedFilters(!showAdvancedFilters)}
-            className={`flex items-center justify-center w-12 h-12 rounded-lg transition-colors shadow-lg border ${
-              showAdvancedFilters
-                ? `${theme === 'light' ? 'bg-blue-600 text-white border-blue-700' : 'bg-blue-400 text-white border-blue-500'} ring-2 ring-blue-400`
-                : filters &&
-                    Object.keys(filters).some((key) => {
-                      const value = filters[key as keyof typeof filters];
-                      return Array.isArray(value) ? value.length > 0 : value !== undefined;
-                    })
-                  ? `${theme === 'light' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-blue-900/50 text-blue-300 border-blue-700'} backdrop-blur-sm`
-                  : 'bg-white/90 text-gray-700 hover:bg-gray-100 border-gray-200 backdrop-blur-sm'
-            }`}
-            title="Filters"
-            aria-pressed={showAdvancedFilters}
-          >
-            <Funnel size={16} />
-          </button>
-          {/* Advanced Filters Panel - positioned below filter icon, right of terrain switcher */}
-          {showAdvancedFilters && setFilters && (
-            <div
-              className={`absolute left-0 top-[56px] z-[1200] transition-all duration-200`}
-              style={{
-                transform: 'translateX(0)', // align horizontally with the filter icon
-                minWidth: 320,
-                maxWidth: 380,
-                height: 340,
-              }}
-              aria-hidden={!showAdvancedFilters}
-            >
-              <div
-                className="shadow-2xl rounded-xl border border-gray-200 bg-white/95 dark:bg-gray-900/95 p-4 max-h-full overflow-y-auto flex flex-col"
-                style={{ height: '100%' }}
-              >
-                <AdvancedFilters
-                  isOpen={true}
-                  onClose={() => onShowAdvancedFilters && onShowAdvancedFilters(false)}
-                  onFiltersChange={setFilters}
-                  currentFilters={filters as FilterState}
-                  compact
-                />
+            {mapLayer === 'standard' && (
+              <div className="w-full h-full bg-[#e8e4d8] flex items-center justify-center">
+                <Globe size={18} className="text-gray-600" />
               </div>
-            </div>
-          )}
-          <button
-            onClick={() => onEnableClusteringChange && onEnableClusteringChange(!enableClustering)}
-            className={`flex items-center justify-center w-12 h-12 rounded-lg transition-colors shadow-lg border ${
-              enableClustering
-                ? `${theme === 'light' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-purple-900/50 text-purple-300 border-purple-700'} backdrop-blur-sm`
-                : 'bg-white/90 text-gray-700 hover:bg-gray-100 border-gray-200 backdrop-blur-sm'
-            }`}
-            title="Clustering"
-          >
-            <CirclesFour size={16} />
-          </button>
-
-          <button
-            onClick={() => onShowHeatmapChange && onShowHeatmapChange(!showHeatmap)}
-            className={`flex items-center justify-center w-12 h-12 rounded-lg transition-colors shadow-lg border ${
-              showHeatmap
-                ? `${theme === 'light' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-orange-900/50 text-orange-300 border-orange-700'} backdrop-blur-sm`
-                : 'bg-white/90 text-gray-700 hover:bg-gray-100 border-gray-200 backdrop-blur-sm'
-            }`}
-            title="Heatmap"
-          >
-            <ChartBar size={16} />
-          </button>
-        </div>
-      </div>
-
-      {/* Combined Occurrence Count & Export Button - top-right */}
-      <div className="absolute top-4 right-4 z-40 w-48">
-        <button
-          onClick={() =>
-            exportToCSV(
-              validOccurrences,
-              `species-occurrences-${new Date().toISOString().split('T')[0]}.csv`,
-            )
-          }
-          disabled={validOccurrences.length === 0 || loading}
-          className={`w-full flex items-center justify-center space-x-2 px-3 py-2 h-12 rounded-lg transition-all shadow-lg bg-white/90 backdrop-blur-sm border border-gray-200 ${
-            validOccurrences.length > 0 && !loading
-              ? 'hover:bg-gray-50 text-gray-700 hover:shadow-md cursor-pointer'
-              : 'text-gray-400 cursor-not-allowed'
-          }`}
-          title="Export occurrence data as CSV"
-        >
-          <span className="text-sm font-medium text-center flex-1">
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg
-                  className="animate-spin h-4 w-4 mr-1 text-gray-400"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                  ></path>
-                </svg>
-                Loading...
-              </span>
-            ) : (
-              <>
-                {validOccurrences.length} occurrence{validOccurrences.length !== 1 ? 's' : ''}
-              </>
             )}
-          </span>
-          <Download size={16} className="flex-shrink-0" />
-        </button>
-      </div>
+            {mapLayer === 'terrain' && (
+              <div className="w-full h-full bg-[#d4cbb8] flex items-center justify-center">
+                <Mountains size={18} className="text-gray-600" />
+              </div>
+            )}
+            {mapLayer === 'satellite' && (
+              <div className="w-full h-full bg-[#2d4a2d] flex items-center justify-center">
+                <Planet size={18} className="text-white" />
+              </div>
+            )}
+          </button>
 
-      {/* Heatmap Legend - positioned below the combined button */}
-      {showHeatmap && (
-        <div
-          className="absolute right-4 z-40 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 shadow-lg w-48"
-          style={{ top: '68px' }}
-        >
-          <div className="text-sm font-medium text-gray-800 mb-2 text-center">Density Scale</div>
-          <div className="flex items-center space-x-2 text-xs">
-            <div className="flex items-center space-x-1">
-              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-              <span>Low</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <span>↑</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-              <span>↑</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-              <span>↑</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <div className="w-3 h-3 rounded-full bg-pink-600"></div>
-              <span>High</span>
-            </div>
+          {/* Expanded: show all layer options on hover */}
+          <div className="absolute bottom-0 left-0 flex gap-1.5 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200 bg-white/95 backdrop-blur-sm rounded-lg p-1.5 shadow-xl border border-gray-200">
+            <button
+              onClick={() => setMapLayer('standard')}
+              className={`flex flex-col items-center gap-0.5 cursor-pointer ${mapLayer === 'standard' ? 'ring-2 ring-blue-500 rounded-lg' : ''}`}
+            >
+              <div className="w-[44px] h-[44px] rounded-lg overflow-hidden border border-gray-200">
+                <div className="w-full h-full bg-[#e8e4d8] flex items-center justify-center">
+                  <Globe size={16} className="text-gray-600" />
+                </div>
+              </div>
+              <span className={`text-[9px] font-medium ${mapLayer === 'standard' ? 'text-blue-600' : 'text-gray-600'}`}>Map</span>
+            </button>
+            <button
+              onClick={() => setMapLayer('terrain')}
+              className={`flex flex-col items-center gap-0.5 cursor-pointer ${mapLayer === 'terrain' ? 'ring-2 ring-blue-500 rounded-lg' : ''}`}
+            >
+              <div className="w-[44px] h-[44px] rounded-lg overflow-hidden border border-gray-200">
+                <div className="w-full h-full bg-[#d4cbb8] flex items-center justify-center">
+                  <Mountains size={16} className="text-gray-600" />
+                </div>
+              </div>
+              <span className={`text-[9px] font-medium ${mapLayer === 'terrain' ? 'text-blue-600' : 'text-gray-600'}`}>Terrain</span>
+            </button>
+            <button
+              onClick={() => setMapLayer('satellite')}
+              className={`flex flex-col items-center gap-0.5 cursor-pointer ${mapLayer === 'satellite' ? 'ring-2 ring-blue-500 rounded-lg' : ''}`}
+            >
+              <div className="w-[44px] h-[44px] rounded-lg overflow-hidden border border-gray-200">
+                <div className="w-full h-full bg-[#2d4a2d] flex items-center justify-center">
+                  <Planet size={16} className="text-white" />
+                </div>
+              </div>
+              <span className={`text-[9px] font-medium ${mapLayer === 'satellite' ? 'text-blue-600' : 'text-gray-600'}`}>Satellite</span>
+            </button>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Zoom Controls - positioned outside map container */}
-      <div className="absolute bottom-8 right-4 z-50 bg-white rounded-lg shadow-lg w-12 border border-gray-200">
+      {/* Zoom Controls - positioned outside map container */
+      /* Time Explorer button moved to tools page top-right toolbar */}
+      <div className="absolute bottom-8 right-4 z-50 bg-white rounded-md shadow-lg w-8 border border-gray-200">
         <div className="flex flex-col">
           <button
             onClick={() => {
@@ -895,7 +831,7 @@ export default function InteractiveMap({
                 mapInstance.zoomIn();
               }
             }}
-            className="h-12 text-gray-700 hover:bg-gray-100 rounded-t-lg transition-colors border-b border-gray-200 flex items-center justify-center font-black text-xl"
+            className="h-8 text-gray-700 hover:bg-gray-100 rounded-t-md transition-colors border-b border-gray-200 flex items-center justify-center font-black text-xl"
             title="Zoom in"
           >
             +
@@ -906,29 +842,12 @@ export default function InteractiveMap({
                 mapInstance.zoomOut();
               }
             }}
-            className="h-12 text-gray-700 hover:bg-gray-100 rounded-b-lg transition-colors flex items-center justify-center font-black text-xl"
+            className="h-8 text-gray-700 hover:bg-gray-100 rounded-b-md transition-colors flex items-center justify-center font-black text-xl"
             title="Zoom out"
           >
             -
           </button>
         </div>
-      </div>
-
-      {/* Time Explorer Button - positioned at bottom-left */}
-      <div className="absolute bottom-8 left-4 z-50">
-        <button
-          onClick={() =>
-            onShowTemporalSliderChange && onShowTemporalSliderChange(!showTemporalSlider)
-          }
-          className={`flex items-center justify-center w-12 h-12 rounded-lg transition-colors shadow-lg border ${
-            showTemporalSlider
-              ? `${theme === 'light' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-green-900/50 text-green-300 border-green-700'} backdrop-blur-sm`
-              : 'bg-white/90 text-gray-700 hover:bg-gray-100 border-gray-200 backdrop-blur-sm'
-          }`}
-          title="Time Explorer"
-        >
-          <Clock size={16} />
-        </button>
       </div>
 
       <MapContainer
@@ -942,7 +861,7 @@ export default function InteractiveMap({
         maxBoundsViscosity={1.0}
         zoomControl={false}
         style={{ width: '100%', zIndex: 1 }}
-        className="rounded-lg shadow-lg h-[400px] sm:h-[500px] lg:h-[600px] xl:h-[700px] 2xl:h-[800px] relative z-10"
+        className="rounded-lg shadow-lg h-full relative z-10"
       >
         <MapInstanceCapture setMapInstance={setMapInstance} />
         {/* Report bounds to parent */}
@@ -972,7 +891,7 @@ export default function InteractiveMap({
                     >
                       <Popup autoPan={false}>
                         <div
-                          className="p-2 min-w-[220px] max-w-[320px] max-h-[340px] overflow-y-auto"
+                          className="p-1.5 min-w-[200px] max-w-[300px] max-h-[340px] overflow-y-auto"
                           style={{ boxSizing: 'border-box' }}
                         >
                           {/* Image at the top, square, spinner while loading */}
@@ -986,10 +905,10 @@ export default function InteractiveMap({
                             }
                             enableFullscreen={true}
                           />
-                          <h3 className="font-bold text-base mb-1 text-center">
+                          <h3 className="font-bold text-sm mb-0.5 text-center">
                             {occurrence.species || occurrence.scientificName || 'Unknown species'}
                           </h3>
-                          <div className="space-y-1">
+                          <div className="space-y-0.5">
                             <p className="text-xs text-gray-700 flex flex-row gap-1 items-center">
                               <span className="font-semibold">Location:</span>{' '}
                               {occurrence.decimalLatitude?.toFixed(4)},{' '}
@@ -1073,7 +992,7 @@ export default function InteractiveMap({
                 >
                   <Popup autoPan={false}>
                     <div
-                      className="p-2 min-w-[220px] max-w-[320px] max-h-[340px] overflow-y-auto"
+                      className="p-1.5 min-w-[200px] max-w-[300px] max-h-[340px] overflow-y-auto"
                       style={{ boxSizing: 'border-box' }}
                     >
                       {/* Image at the top, square, spinner while loading */}
@@ -1087,10 +1006,10 @@ export default function InteractiveMap({
                         }
                         enableFullscreen={true}
                       />
-                      <h3 className="font-bold text-base mb-1 text-center">
+                      <h3 className="font-bold text-sm mb-0.5 text-center">
                         {occurrence.species || occurrence.scientificName || 'Unknown species'}
                       </h3>
-                      <div className="space-y-1">
+                      <div className="space-y-0.5">
                         <p className="text-xs text-gray-700 flex flex-row gap-1 items-center">
                           <span className="font-semibold">Location:</span>{' '}
                           {occurrence.decimalLatitude?.toFixed(4)},{' '}
@@ -1118,11 +1037,139 @@ export default function InteractiveMap({
                   </Popup>
                 </Marker>
               )))}
+
+        {/* Corridor overlays — smooth curves between core areas */}
+        {corridors.map((corridor) => {
+          // Skip corridors rated "unlikely" — ecologically meaningless
+          const viability = (corridor as any).viability;
+          if (viability?.rating === 'unlikely') return null;
+
+          // Smooth the raw grid path into a natural-looking curve
+          const rawPositions = corridor.path.map(([lng, lat]) => [lat, lng] as [number, number]);
+          const smoothed = smoothPath(rawPositions, 3);
+          // Color based on viability assessment
+          const mainColor = !viability ? '#f59e0b' :
+            viability.rating === 'optimal' ? '#10b981' :
+            viability.rating === 'feasible' ? '#3b82f6' :
+            viability.rating === 'marginal' ? '#f59e0b' : '#ef4444';
+          const glowColor = !viability ? '#fbbf24' :
+            viability.rating === 'optimal' ? '#6ee7b7' :
+            viability.rating === 'feasible' ? '#93c5fd' :
+            viability.rating === 'marginal' ? '#fbbf24' : '#fca5a5';
+          return (
+            <React.Fragment key={`corridor-${corridor.id}`}>
+              {/* Corridor glow/outline */}
+              <Polyline
+                positions={smoothed}
+                pathOptions={{
+                  color: glowColor,
+                  weight: 10,
+                  opacity: 0.25,
+                  lineCap: 'round',
+                  lineJoin: 'round',
+                }}
+              />
+              {/* Corridor main line */}
+              <Polyline
+                positions={smoothed}
+                pathOptions={{
+                  color: mainColor,
+                  weight: 4,
+                  opacity: 0.85,
+                  lineCap: 'round',
+                  lineJoin: 'round',
+                  dashArray: viability?.rating === 'marginal' ? '8 6' : undefined,
+                }}
+              />
+            </React.Fragment>
+          );
+        })}
+
+        {/* Core area overlays */}
+        {coreAreas.map((area) => (
+          <CircleMarker
+            key={`core-${area.id}`}
+            center={[area.lat, area.lng]}
+            radius={12 + Math.min(area.occurrenceCount, 10)}
+            pathOptions={{
+              color: area.protectedArea ? '#059669' : '#10b981',
+              fillColor: area.protectedArea ? '#059669' : '#10b981',
+              fillOpacity: area.protectedArea ? 0.4 : 0.3,
+              weight: area.protectedArea ? 3 : 2,
+              dashArray: area.protectedArea ? '4 4' : undefined,
+            }}
+          >
+            <Popup>
+              <div className="text-xs">
+                <p className="font-semibold">
+                  {area.protectedArea ? area.protectedArea.name : `Core Area ${area.id + 1}`}
+                </p>
+                {area.protectedArea && (
+                  <p className="text-emerald-600">{area.protectedArea.designationType.replace(/_/g, ' ')}</p>
+                )}
+                <p>{area.occurrenceCount > 0 ? `${area.occurrenceCount} observations` : 'Official protected area'}</p>
+                <p className="text-gray-500">{area.lat.toFixed(3)}, {area.lng.toFixed(3)}</p>
+              </div>
+            </Popup>
+          </CircleMarker>
+        ))}
+
+        {/* Stepping stone overlays */}
+        {steppingStones.filter(s => s.withinRange).map((stone, i) => (
+          <CircleMarker
+            key={`stone-${i}`}
+            center={[stone.lat, stone.lng]}
+            radius={5}
+            pathOptions={{
+              color: '#8b5cf6',
+              fillColor: '#8b5cf6',
+              fillOpacity: 0.5,
+              weight: 1.5,
+            }}
+          >
+            <Popup>
+              <div className="text-xs">
+                <p className="font-semibold text-purple-700">Stepping Stone</p>
+                <p>Intermediate habitat patch</p>
+                <p className="text-gray-500">{stone.distanceToCorridorKm.toFixed(1)} km from corridor</p>
+              </div>
+            </Popup>
+          </CircleMarker>
+        ))}
+
+        {/* Highlighted point marker */}
+        {highlightedPoint && (
+          <Marker
+            position={[highlightedPoint.lat, highlightedPoint.lng]}
+            icon={defaultIcon}
+          >
+            <Popup>
+              <div className="text-xs max-w-[200px]">
+                {highlightedPoint.image && (
+                  <img
+                    src={highlightedPoint.image}
+                    alt={highlightedPoint.label || ''}
+                    className="w-full h-24 object-cover rounded mb-1.5"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                )}
+                {highlightedPoint.label && <p className="font-semibold">{highlightedPoint.label}</p>}
+                <p className="text-gray-500">{highlightedPoint.lat.toFixed(5)}, {highlightedPoint.lng.toFixed(5)}</p>
+              </div>
+            </Popup>
+          </Marker>
+        )}
       </MapContainer>
-      <div className="flex items-center justify-between px-2 py-1 text-xs text-gray-400 bg-gray-50/80 border-t border-gray-100">
-        <span>Biodiversity data provided by <a href="https://www.gbif.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 font-medium">GBIF.org</a></span>
-        <span>License: <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600">CC BY 4.0</a></span>
-      </div>
+      {/* GBIF credits overlay — visible only when occurrences are loaded */}
+      {occurrences.length > 0 && (
+        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 z-[500] pointer-events-auto">
+          <div className="bg-white/90 backdrop-blur-sm rounded px-3 py-1 text-[10px] text-gray-500 shadow-sm border border-gray-200/50">
+            Data: <a href="https://www.gbif.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-700 font-medium">GBIF.org</a>
+            {' · '}
+            <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-700">CC BY 4.0</a>
+          </div>
+        </div>
+      )}
       {/* Attribution CSS override for bottom/right margin and cluster styles */}
       <style>{`
         .leaflet-control-attribution {

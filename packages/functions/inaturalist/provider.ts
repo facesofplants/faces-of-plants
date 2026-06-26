@@ -15,6 +15,10 @@ import {
   type iNaturalistSearchParams,
 } from './client';
 
+interface iNaturalistProviderOptions {
+  userAgent?: string;
+}
+
 export class iNaturalistProvider implements DataSourceProvider {
   id = 'inaturalist';
   name = 'iNaturalist';
@@ -163,16 +167,16 @@ export class iNaturalistProvider implements DataSourceProvider {
 
   client: iNaturalistDataSourceClient;
 
-  constructor() {
-    this.client = new iNaturalistDataSourceClient();
+  constructor(options?: iNaturalistProviderOptions) {
+    this.client = new iNaturalistDataSourceClient(options);
   }
 }
 
 class iNaturalistDataSourceClient implements DataSourceClient {
   private inatClient: iNaturalistClient;
 
-  constructor() {
-    this.inatClient = new iNaturalistClient();
+  constructor(options?: iNaturalistProviderOptions) {
+    this.inatClient = new iNaturalistClient({ userAgent: options?.userAgent });
   }
 
   async search(params: SearchParams): Promise<SearchResult> {

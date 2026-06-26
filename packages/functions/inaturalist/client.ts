@@ -3,6 +3,8 @@
  * Provides access to citizen science biodiversity observations
  */
 
+import { RetryService } from '../../core/src/services';
+
 export interface iNaturalistObservation {
   id: number;
   observed_on: string;
@@ -81,15 +83,18 @@ export interface iNaturalistSearchResponse {
   results: iNaturalistObservation[];
 }
 
-import { RetryService } from '../../core/src/services';
+interface iNaturalistClientOptions {
+  userAgent?: string;
+}
 
 export class iNaturalistClient {
   private readonly baseUrl = 'https://api.inaturalist.org/v1';
-  private readonly userAgent = 'faces-of-plants/1.0';
+  private userAgent: string;
   private retryService: RetryService;
 
-  constructor() {
+  constructor(options: iNaturalistClientOptions = {}) {
     this.retryService = new RetryService();
+    this.userAgent = options.userAgent || process.env.INATURALIST_USER_AGENT || 'faces-of-plants/1.0';
   }
 
   async searchObservations(params: iNaturalistSearchParams): Promise<iNaturalistSearchResponse> {
