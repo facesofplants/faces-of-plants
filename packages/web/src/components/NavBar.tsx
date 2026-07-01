@@ -36,7 +36,7 @@ export default function NavBar() {
 
   return (
     <nav className={`${navBg} backdrop-blur-lg border-b ${borderColor} sticky top-0 z-[9999]`}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full" style={{ paddingLeft: '16px', paddingRight: '16px' }}>
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <div className="flex items-center">
@@ -101,7 +101,7 @@ export default function NavBar() {
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
           <div className="lg:hidden">
-            <div className={`px-2 pt-2 pb-3 space-y-1 backdrop-blur-lg border-t ${
+            <div className={`pt-2 pb-3 space-y-1 backdrop-blur-lg border-t ${
               theme === 'light' ? 'bg-white/95 border-gray-200' : 'bg-black/95 border-white/10'
             }`}>
               {navLinks.map((link) => (

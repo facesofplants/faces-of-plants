@@ -241,4 +241,4 @@ If you just want to test the admin dashboard quickly:
 
 - [JWT Validation Middleware](./COGNITO-REMOVAL-AND-JWT-IMPLEMENTATION.md)
 - [Authentication Architecture](./AUTHENTICATION-ARCHITECTURE-AUDIT.md)
-- [Admin API Fix](./ADMIN-API-FIX.md)
+- [Admin API Fix](./archieve/ADMIN-API-FIX.md)

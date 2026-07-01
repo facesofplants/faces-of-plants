@@ -15,6 +15,10 @@ interface SearchLog {
   sessionId: string | null;
   userEmail: string | null;
   ip: string;
+  statusCode?: number | null;
+  isFailure?: boolean;
+  errorType?: string | null;
+  errorMessage?: string | null;
 }
 
 interface SessionGroup {
@@ -133,6 +137,7 @@ function groupProblematicQueries(logs: SearchLog[]): ProblematicQueryGroup[] {
   const map = new Map<string, ProblematicQueryGroup & { sessionIds: Set<string> }>();
 
   for (const log of logs) {
+    if (log.isFailure) continue;
     if (Number(log.occurrences) !== 0 || Number(log.totalCount) !== 0) continue;
     const key = normalizeQuery(log.query);
     const existing = map.get(key);
@@ -272,6 +277,7 @@ function buildApiReplayUrl(query: string): string {
 function LogRow({ log, defaultExpanded }: { log: SearchLog; defaultExpanded?: boolean }) {
   const [expanded, setExpanded] = useState(defaultExpanded || false);
   const paramsText = formatGbifParams(log.gbifParams);
+  const failureLabel = log.statusCode ? `HTTP ${log.statusCode}` : 'FAILED';
 
   return (
     <>
@@ -290,24 +296,44 @@ function LogRow({ log, defaultExpanded }: { log: SearchLog; defaultExpanded?: bo
         <td className="px-3 py-2.5 font-medium text-gray-900 text-sm">{log.query}</td>
         <td className="px-3 py-2.5 text-gray-700 italic text-sm">{log.resolvedName || '—'}</td>
         <td className="px-3 py-2.5">
-          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-            log.resolverSource === 'gbif-species-api' ? 'bg-green-100 text-green-700' :
-            log.resolverSource === 'llm' ? 'bg-purple-100 text-purple-700' :
-            log.resolverSource === 'direct' ? 'bg-blue-100 text-blue-700' :
-            'bg-gray-100 text-gray-600'
-          }`}>
-            {log.resolverSource}
-          </span>
+          {log.isFailure ? (
+            <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+              {failureLabel}
+            </span>
+          ) : (
+            <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+              log.resolverSource === 'gbif-species-api' ? 'bg-green-100 text-green-700' :
+              log.resolverSource === 'llm' ? 'bg-purple-100 text-purple-700' :
+              log.resolverSource === 'direct' ? 'bg-blue-100 text-blue-700' :
+              'bg-gray-100 text-gray-600'
+            }`}>
+              {log.resolverSource}
+            </span>
+          )}
         </td>
         <td className="px-3 py-2.5 text-right font-mono text-sm">
-          <span className="text-gray-900">{log.occurrences}</span>
-          <span className="text-gray-400 text-xs"> / {log.totalCount.toLocaleString()}</span>
+          {log.isFailure ? (
+            <span className="text-red-700 text-xs font-medium">{log.errorType || 'Request failed'}</span>
+          ) : (
+            <>
+              <span className="text-gray-900">{log.occurrences}</span>
+              <span className="text-gray-400 text-xs"> / {log.totalCount.toLocaleString()}</span>
+            </>
+          )}
         </td>
       </tr>
       {expanded && (
         <tr className="bg-gray-50 border-b border-gray-100">
           <td colSpan={6} className="px-8 py-3">
             <div className="space-y-2 text-xs">
+              {log.isFailure ? (
+                <div>
+                  <span className="font-semibold text-red-700">Failure:</span>
+                  <pre className="mt-1 p-2 bg-white border border-red-200 rounded text-red-700 font-mono whitespace-pre-wrap break-all">
+                    {log.errorMessage || 'No error message available'}
+                  </pre>
+                </div>
+              ) : null}
               <div>
                 <span className="font-semibold text-gray-600">GBIF Params:</span>
                 <pre className="mt-1 p-2 bg-white border border-gray-200 rounded text-gray-700 font-mono whitespace-pre-wrap break-all">
@@ -389,6 +415,7 @@ export default function SearchLogsPage() {
   const coverageStats = computeCoverageStats(problematicGroups);
   const problematicSet = new Set(
     timeFilteredLogs
+      .filter((l) => !l.isFailure)
       .filter((l) => Number(l.occurrences) === 0 && Number(l.totalCount) === 0)
       .map((l) => `${l.timestamp}::${normalizeQuery(l.query)}`),
   );

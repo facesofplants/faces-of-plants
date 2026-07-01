@@ -30,6 +30,8 @@ export const API_KEY_DEFINITIONS: Omit<SystemSetting, 'settingValue' | 'updatedB
   { settingKey: 'api:gbif_user_agent', category: 'api_keys', description: 'GBIF User-Agent identifier', masked: false },
   { settingKey: 'api:inaturalist_user_agent', category: 'api_keys', description: 'iNaturalist User-Agent identifier', masked: false },
   { settingKey: 'api:eol', category: 'api_keys', description: 'Encyclopedia of Life API key (optional)', masked: true },
+  { settingKey: 'analytics:ga4:web_measurement_id', category: 'system', description: 'GA4 Measurement ID for facesofplants.org', masked: false },
+  { settingKey: 'analytics:ga4:admin_measurement_id', category: 'system', description: 'GA4 Measurement ID for console.facesofplants.org', masked: false },
 ];
 
 export const FEATURE_FLAGS: Omit<SystemSetting, 'settingValue' | 'updatedBy' | 'updatedAt'>[] = [

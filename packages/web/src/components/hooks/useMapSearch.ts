@@ -193,7 +193,7 @@ export const useMapSearch = () => {
       lastQsRef.current = qs;
       endOfRecordsRef.current = false;
 
-      const initialPages = 3; // Load 3 pages (900) by default
+      const initialPages = 1; // Load first page eagerly; additional pages via "Load more"
       let allResults: GBIFOccurrence[] = [];
       let totalCount = 0;
       let resolvedName = '';

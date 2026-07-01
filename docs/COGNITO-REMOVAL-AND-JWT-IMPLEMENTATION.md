@@ -432,5 +432,5 @@ Successfully completed:
 
 - [Authentication Architecture Audit](./AUTHENTICATION-ARCHITECTURE-AUDIT.md)
 - [Authentication Flow Documentation](./AUTHENTICATION-FLOW.md)
-- [Authentication Simplification Plan](./AUTHENTICATION-SIMPLIFICATION-PLAN.md)
+- [Authentication Simplification Plan](./archieve/AUTHENTICATION-SIMPLIFICATION-PLAN.md)
 - [AWS Authorization Architecture](./AWS-AUTHORIZATION-ARCHITECTURE.md)

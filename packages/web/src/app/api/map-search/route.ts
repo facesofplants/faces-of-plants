@@ -1111,9 +1111,51 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[MAP-SEARCH] Error:', error);
+    const statusCode =
+      typeof error === 'object' &&
+      error !== null &&
+      'statusCode' in error &&
+      typeof (error as { statusCode?: unknown }).statusCode === 'number'
+        ? (error as { statusCode: number }).statusCode
+        : 500;
+
+    if (statusCode === 429 || statusCode >= 500) {
+      const { searchParams } = new URL(request.url);
+      const failureQuery = searchParams.get('species') || '';
+      const failureGbifParams: Record<string, unknown> = {
+        hasCoordinate: searchParams.get('hasCoordinate') !== 'false',
+        limit: parseInt(searchParams.get('limit') || '300', 10),
+        offset: parseInt(searchParams.get('offset') || '0', 10),
+      };
+
+      const passthroughKeys = ['country', 'basisOfRecord', 'countries', 'dateStart', 'dateEnd', 'bbox', 'geoContext', 'hasImage'];
+      passthroughKeys.forEach((key) => {
+        const value = searchParams.get(key);
+        if (value !== null && value !== '') {
+          failureGbifParams[key] = value;
+        }
+      });
+
+      const token = await getToken({ req: request as any, secret: process.env.AUTH_SECRET }).catch(() => null);
+      logSearchQuery({
+        query: failureQuery,
+        gbifParams: failureGbifParams,
+        occurrences: 0,
+        totalCount: 0,
+        resolverSource: 'error',
+        sessionId: searchParams.get('sessionId') || undefined,
+        ip: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown',
+        userEmail: token?.email || undefined,
+        statusCode,
+        isFailure: true,
+        errorType: error instanceof Error ? error.name : 'UnknownError',
+        errorMessage: error instanceof Error ? error.message.slice(0, 1000) : 'Unknown error',
+      });
+    }
+
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Unknown error', data: null },
-      { status: 500 },
+      { status: statusCode },
     );
   }
 }
@@ -1122,7 +1164,7 @@ export async function GET(request: NextRequest) {
 
 function logSearchQuery(entry: {
   query: string;
-  gbifParams: GBIFSearchParams;
+  gbifParams: GBIFSearchParams | Record<string, unknown>;
   occurrences: number;
   totalCount: number;
   resolvedName?: string;
@@ -1130,6 +1172,10 @@ function logSearchQuery(entry: {
   sessionId?: string;
   ip: string;
   userEmail?: string;
+  statusCode?: number;
+  isFailure?: boolean;
+  errorType?: string;
+  errorMessage?: string;
 }) {
   if (!SEARCH_LOGS_TABLE) return;
   const now = new Date().toISOString();
@@ -1148,6 +1194,10 @@ function logSearchQuery(entry: {
   };
   if (entry.sessionId) item.sessionId = entry.sessionId;
   if (entry.userEmail) item.userEmail = entry.userEmail;
+  if (typeof entry.statusCode === 'number') item.statusCode = entry.statusCode;
+  if (typeof entry.isFailure === 'boolean') item.isFailure = entry.isFailure;
+  if (entry.errorType) item.errorType = entry.errorType;
+  if (entry.errorMessage) item.errorMessage = entry.errorMessage;
   dynamoClient.send(new PutItemCommand({
     TableName: SEARCH_LOGS_TABLE,
     Item: marshall(item),

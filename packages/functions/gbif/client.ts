@@ -1,5 +1,6 @@
 import { RetryService } from '../../core/src/services';
 import { type GBIFSearchParams, type GBIFOccurrence } from '../../core/src/types';
+import { RateLimitError } from '../../core/src/validation/errors';
 
 interface GBIFClientOptions {
   baseUrl?: string;
@@ -71,6 +72,14 @@ export class GBIFClient {
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`[GBIFClient] Response Error: ${errorText}`);
+        if (response.status === 429) {
+          const retryAfterHeader = response.headers.get('retry-after');
+          const retryAfter = retryAfterHeader ? parseInt(retryAfterHeader, 10) : undefined;
+          throw new RateLimitError(
+            `GBIF API rate limit exceeded: ${errorText}`,
+            Number.isFinite(retryAfter) ? retryAfter : undefined,
+          );
+        }
         throw new Error(`GBIF API error: ${response.status} - ${errorText}`);
       }
 

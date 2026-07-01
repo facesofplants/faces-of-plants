@@ -66,6 +66,10 @@ export async function GET(request: Request) {
         sessionId: record.sessionId || null,
         userEmail: record.userEmail || null,
         ip: record.ip,
+        statusCode: typeof record.statusCode === 'number' ? record.statusCode : null,
+        isFailure: record.isFailure === true,
+        errorType: record.errorType || null,
+        errorMessage: record.errorMessage || null,
       };
     });
 
