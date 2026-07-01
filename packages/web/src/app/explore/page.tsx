@@ -1,6 +1,6 @@
 'use client';
 
-import { MagnifyingGlass, House, IdentificationCard, GitPullRequest, Brain, X, Funnel, CirclesFour, ChartBar, Images, Download, Clock, MapPin } from '@phosphor-icons/react';
+import { MagnifyingGlass, House, IdentificationCard, GitPullRequest, Brain, X, FadersHorizontal, CirclesFour, ChartBar, Download, Clock, MapPin } from '@phosphor-icons/react';
 import dynamicImport from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -56,18 +56,32 @@ const ToolsPage = () => {
   const [showTemporalSlider, setShowTemporalSlider] = useState(false);
   const [enableClustering, setEnableClustering] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
-  const [hasImageOnly, setHasImageOnly] = useState(false);
   const [filters, _setFilters] = useState<FilterState>({
     selectedHabitats: [],
     basisOfRecord: [],
     countries: [],
+    hasImage: false,
   });
   const setFilters = (updater: FilterState | ((prev: FilterState) => FilterState)) => {
-    _setFilters((prev) => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      return { ...next, hasImage: hasImageOnly };
-    });
+    _setFilters((prev) => (typeof updater === 'function' ? updater(prev) : updater));
   };
+  const hasActiveFilters = Boolean(
+    filters.hasImage ||
+    (filters.selectedHabitats?.length ?? 0) > 0 ||
+    (filters.basisOfRecord?.length ?? 0) > 0 ||
+    (filters.countries?.length ?? 0) > 0 ||
+    filters.dateRange?.start ||
+    filters.dateRange?.end ||
+    filters.elevationRange?.min !== undefined ||
+    filters.elevationRange?.max !== undefined,
+  );
+  const activeFiltersCount =
+    (filters.hasImage ? 1 : 0) +
+    (filters.selectedHabitats?.length ?? 0) +
+    (filters.basisOfRecord?.length ?? 0) +
+    ((filters.countries?.length ?? 0) > 0 ? 1 : 0) +
+    (filters.dateRange?.start || filters.dateRange?.end ? 1 : 0) +
+    (filters.elevationRange?.min !== undefined || filters.elevationRange?.max !== undefined ? 1 : 0);
   const [boundingBox, setBoundingBox] = useState<[[number, number], [number, number]] | null>(null);
   const boundingBoxRef = useRef<[[number, number], [number, number]] | null>(null);
   const suppressBoundsSearch = useRef(false);
@@ -151,7 +165,7 @@ const ToolsPage = () => {
     if (!searchQuery && !selectedExample) return;
     if (suppressBoundsSearch.current) return;
     const query = selectedExample || searchQuery;
-    const mergedFilters = { ...filters, hasImage: hasImageOnly };
+    const mergedFilters = filters;
     const handler = setTimeout(() => {
       const bbox = boundingBoxRef.current;
       if (bbox) {
@@ -162,13 +176,13 @@ const ToolsPage = () => {
     }, 500);
     return () => clearTimeout(handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, selectedExample, searchWithFilters, hasImageOnly]);
+  }, [filters, selectedExample, searchWithFilters]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim() || !searchWithFilters) return;
     setSelectedExample(null);
-    const mergedFilters = { ...filters, hasImage: hasImageOnly };
+    const mergedFilters = filters;
     await searchWithFilters(searchQuery.trim(), mergedFilters, boundingBoxRef.current || undefined);
   };
 
@@ -179,10 +193,10 @@ const ToolsPage = () => {
 
     const query = (selectedExample || searchQuery).trim();
     if (query) {
-      const mergedFilters = { ...filters, hasImage: hasImageOnly };
+      const mergedFilters = filters;
       void searchWithFilters(query, mergedFilters);
     }
-  }, [filters, hasImageOnly, searchQuery, searchWithFilters, selectedExample]);
+  }, [filters, searchQuery, searchWithFilters, selectedExample]);
 
   // Count occurrences visible in the current viewport
   const visibleCount = useMemo(() => {
@@ -240,7 +254,7 @@ const ToolsPage = () => {
           onShowAdvancedFilters={setShowAdvancedFilters}
           onEnableClusteringChange={setEnableClustering}
           onShowHeatmapChange={setShowHeatmap}
-          filters={{ ...filters, hasImage: hasImageOnly }}
+          filters={filters}
           setFilters={setFilters}
           theme={theme}
           showTemporalSlider={showTemporalSlider}
@@ -253,6 +267,7 @@ const ToolsPage = () => {
           suggestedBounds={suggestedBounds}
           flyToPoint={flyToPoint}
           highlightedPoint={highlightedPoint}
+          onResetMap={handleResetMap}
         />
       </div>
 
@@ -281,10 +296,36 @@ const ToolsPage = () => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search plants..."
-                  className={`w-full pl-8 pr-3 py-2 text-sm rounded-lg border focus:ring-2 focus:ring-green-500 ${
+                  className={`w-full pl-8 pr-10 py-2 text-sm rounded-lg border focus:ring-2 focus:ring-green-500 ${
                     theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' : 'bg-gray-100 border-gray-300 text-gray-900 placeholder-gray-500'
                   }`}
                 />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextOpen = !showAdvancedFilters;
+                    setShowAdvancedFilters(nextOpen);
+                    if (nextOpen) {
+                      setActiveSidebar(null);
+                    }
+                  }}
+                  className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded transition-colors ${
+                    hasActiveFilters
+                      ? 'text-violet-600 hover:bg-violet-100'
+                      : theme === 'dark'
+                        ? 'text-gray-400 hover:bg-gray-700'
+                        : 'text-gray-500 hover:bg-gray-200'
+                  }`}
+                  title="Open filters"
+                  aria-label="Open filters"
+                >
+                  <FadersHorizontal size={14} weight={hasActiveFilters ? 'fill' : 'regular'} />
+                  {activeFiltersCount > 0 ? (
+                    <span className="absolute -top-1 -right-1 inline-flex min-w-[16px] h-4 items-center justify-center rounded-full bg-violet-600 px-1 text-[10px] font-semibold text-white leading-none">
+                      {activeFiltersCount}
+                    </span>
+                  ) : null}
+                </button>
               </div>
               <button
                 type="submit"
@@ -372,108 +413,6 @@ const ToolsPage = () => {
               )}
             </div>
 
-            {/* Controls row — single line: images, filters, clusters, density */}
-            <div className={`border-t ${panelBorder} px-3 py-1.5 flex items-center gap-1 flex-shrink-0`}>
-              <button
-                onClick={handleResetMap}
-                className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-                  theme === 'light'
-                    ? 'text-gray-500 hover:bg-gray-100'
-                    : 'text-gray-400 hover:bg-gray-800'
-                }`}
-                title="Reset map viewport to world and remove local area constraint"
-              >
-                <MapPin size={11} />
-                Reset map
-              </button>
-              <button
-                onClick={() => setHasImageOnly(!hasImageOnly)}
-                className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-                  hasImageOnly
-                    ? theme === 'light'
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-green-900/50 text-green-300'
-                    : theme === 'light'
-                      ? 'text-gray-500 hover:bg-gray-100'
-                      : 'text-gray-400 hover:bg-gray-800'
-                }`}
-              >
-                <Images size={11} />
-                Images
-              </button>
-              <button
-                onClick={() => { setShowAdvancedFilters(!showAdvancedFilters); if (!showAdvancedFilters) setActiveSidebar(null); }}
-                className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-                  showAdvancedFilters
-                    ? theme === 'light'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'bg-blue-900/50 text-blue-300'
-                    : theme === 'light'
-                      ? 'text-gray-500 hover:bg-gray-100'
-                      : 'text-gray-400 hover:bg-gray-800'
-                }`}
-              >
-                <Funnel size={11} />
-                Filters
-              </button>
-              <button
-                onClick={() => { if (!showHeatmap) setEnableClustering(!enableClustering); }}
-                className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-                  showHeatmap
-                    ? 'text-gray-300 cursor-not-allowed'
-                    : enableClustering
-                      ? theme === 'light'
-                        ? 'bg-purple-100 text-purple-700'
-                        : 'bg-purple-900/50 text-purple-300'
-                      : theme === 'light'
-                        ? 'text-gray-500 hover:bg-gray-100'
-                        : 'text-gray-400 hover:bg-gray-800'
-                }`}
-                disabled={showHeatmap}
-                title={showHeatmap ? 'Disabled while Density is active' : ''}
-              >
-                <CirclesFour size={11} />
-                Clusters
-              </button>
-              <button
-                onClick={() => {
-                  if (!showHeatmap) {
-                    clusteringBeforeDensityRef.current = enableClustering;
-                    setEnableClustering(false);
-                    setShowHeatmap(true);
-                  } else {
-                    setShowHeatmap(false);
-                    setEnableClustering(clusteringBeforeDensityRef.current);
-                  }
-                }}
-                className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-                  showHeatmap
-                    ? theme === 'light'
-                      ? 'bg-orange-100 text-orange-700'
-                      : 'bg-orange-900/50 text-orange-300'
-                    : theme === 'light'
-                      ? 'text-gray-500 hover:bg-gray-100'
-                      : 'text-gray-400 hover:bg-gray-800'
-                }`}
-              >
-                <ChartBar size={11} />
-                Density
-              </button>
-            </div>
-
-            {/* Density scale — inline, only when Density is active */}
-            {showHeatmap && (
-              <div className={`border-t ${panelBorder} px-3 py-1.5 flex items-center gap-1.5 text-[10px] flex-shrink-0`}>
-                <span className="text-gray-500">Low</span>
-                <span className="w-4 h-2 rounded-sm bg-blue-500 inline-block" />
-                <span className="w-4 h-2 rounded-sm bg-green-500 inline-block" />
-                <span className="w-4 h-2 rounded-sm bg-yellow-500 inline-block" />
-                <span className="w-4 h-2 rounded-sm bg-orange-500 inline-block" />
-                <span className="w-4 h-2 rounded-sm bg-pink-600 inline-block" />
-                <span className="text-gray-500">High</span>
-              </div>
-            )}
-
             {/* Advanced Filters — inline, below controls */}
             {showAdvancedFilters && !activeSidebar && (
               <div className={`border-t ${panelBorder} px-3 py-2 max-h-[280px] overflow-y-auto flex-shrink-0`}>
@@ -481,7 +420,7 @@ const ToolsPage = () => {
                   isOpen={true}
                   onClose={() => setShowAdvancedFilters(false)}
                   onFiltersChange={setFilters}
-                  currentFilters={{ ...filters, hasImage: hasImageOnly }}
+                  currentFilters={filters}
                   compact
                 />
               </div>
@@ -617,6 +556,78 @@ const ToolsPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Floating map controls: aligned to top of search panel, shown only with results */}
+      {occurrences.length > 0 && (
+        <div className="absolute top-[72px] left-4 sm:top-4 sm:left-[436px] z-[1000] pointer-events-none max-w-[calc(100vw-2rem)] sm:max-w-none">
+          <div className="pointer-events-auto relative inline-block">
+            <div className="inline-flex flex-wrap sm:flex-nowrap items-center gap-2">
+              <button
+                onClick={() => { if (!showHeatmap) setEnableClustering(!enableClustering); }}
+                className={`flex items-center gap-1 px-2.5 py-2 rounded-lg text-xs font-medium border backdrop-blur-md transition-colors shadow ${
+                  showHeatmap
+                    ? theme === 'light'
+                      ? 'text-gray-300 border-gray-200 bg-white/90 cursor-not-allowed'
+                      : 'text-gray-500 border-gray-700 bg-gray-900/90 cursor-not-allowed'
+                    : enableClustering
+                      ? theme === 'light'
+                        ? 'bg-purple-100/95 border-purple-300 text-purple-700'
+                        : 'bg-purple-900/60 border-purple-700 text-purple-300'
+                      : theme === 'light'
+                        ? 'bg-white/95 border-gray-200 text-gray-600 hover:bg-gray-50'
+                        : 'bg-gray-900/90 border-gray-700 text-gray-300 hover:bg-gray-800'
+                }`}
+                disabled={showHeatmap}
+                title={showHeatmap ? 'Disabled while Density is active' : ''}
+              >
+                <CirclesFour size={13} />
+                Clusters
+              </button>
+
+              <button
+                onClick={() => {
+                  if (!showHeatmap) {
+                    clusteringBeforeDensityRef.current = enableClustering;
+                    setEnableClustering(false);
+                    setShowHeatmap(true);
+                  } else {
+                    setShowHeatmap(false);
+                    setEnableClustering(clusteringBeforeDensityRef.current);
+                  }
+                }}
+                className={`flex items-center gap-1 px-2.5 py-2 rounded-lg text-xs font-medium border backdrop-blur-md transition-colors shadow ${
+                  showHeatmap
+                    ? theme === 'light'
+                      ? 'bg-orange-100/95 border-orange-300 text-orange-700'
+                      : 'bg-orange-900/60 border-orange-700 text-orange-300'
+                    : theme === 'light'
+                      ? 'bg-white/95 border-gray-200 text-gray-600 hover:bg-gray-50'
+                      : 'bg-gray-900/90 border-gray-700 text-gray-300 hover:bg-gray-800'
+                }`}
+              >
+                <ChartBar size={13} />
+                Density
+              </button>
+            </div>
+
+            {showHeatmap && (
+              <div className={`absolute left-0 right-0 top-full mt-1 sm:mt-2 px-2 py-1 rounded-lg border shadow backdrop-blur-md text-[10px] ${
+                theme === 'light' ? 'bg-white/95 border-gray-200 text-gray-600' : 'bg-gray-900/90 border-gray-700 text-gray-300'
+              }`}>
+                <div className="flex items-center justify-center gap-1 flex-wrap">
+                  <span>Low</span>
+                  <span className="w-4 h-2 rounded-sm bg-blue-500 inline-block" />
+                  <span className="w-4 h-2 rounded-sm bg-green-500 inline-block" />
+                  <span className="w-4 h-2 rounded-sm bg-yellow-500 inline-block" />
+                  <span className="w-4 h-2 rounded-sm bg-orange-500 inline-block" />
+                  <span className="w-4 h-2 rounded-sm bg-pink-600 inline-block" />
+                  <span>High</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── TECHNICAL SHEET: right side panel when no tool is active ── */}
       {!activeSidebar && selectedSpecies && (

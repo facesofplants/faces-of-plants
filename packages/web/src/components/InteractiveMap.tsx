@@ -61,6 +61,7 @@ interface InteractiveMapProps {
   coreAreas?: { id: number; lat: number; lng: number; occurrenceCount: number; protectedArea?: { name: string; designationType: string } }[];
   steppingStones?: { lat: number; lng: number; distanceToCorridorKm: number; withinRange: boolean }[];
   suggestedBounds?: { south: number; north: number; west: number; east: number } | null;
+  onResetMap?: () => void;
 }
 
 // Custom Zoom Control Component
@@ -359,6 +360,7 @@ interface InteractiveMapProps {
   suggestedBounds?: { south: number; north: number; west: number; east: number } | null;
   flyToPoint?: { lat: number; lng: number; zoom?: number } | null;
   highlightedPoint?: { lat: number; lng: number; label?: string; image?: string } | null;
+  onResetMap?: () => void;
 }
 
 // Export functions
@@ -557,6 +559,7 @@ export default function InteractiveMap({
   suggestedBounds,
   flyToPoint,
   highlightedPoint,
+  onResetMap,
 }: InteractiveMapProps) {
   const [isClient, setIsClient] = useState(false);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
@@ -828,10 +831,25 @@ export default function InteractiveMap({
           <button
             onClick={() => {
               if (mapInstance) {
+                mapInstance.setView([25.0, 0.0], 2, { animate: true });
+              }
+              if (onResetMap) {
+                onResetMap();
+              }
+            }}
+            className="h-8 text-gray-700 hover:bg-gray-100 rounded-t-md transition-colors border-b border-gray-200 flex items-center justify-center"
+            title="Reset map"
+            aria-label="Reset map"
+          >
+            <ArrowsOutSimple size={14} />
+          </button>
+          <button
+            onClick={() => {
+              if (mapInstance) {
                 mapInstance.zoomIn();
               }
             }}
-            className="h-8 text-gray-700 hover:bg-gray-100 rounded-t-md transition-colors border-b border-gray-200 flex items-center justify-center font-black text-xl"
+            className="h-8 text-gray-700 hover:bg-gray-100 transition-colors border-b border-gray-200 flex items-center justify-center font-black text-xl"
             title="Zoom in"
           >
             +

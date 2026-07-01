@@ -1,7 +1,7 @@
 'use client';
 
-import { Calendar, Mountains, Tree, Funnel, X, Check } from '@phosphor-icons/react';
-import React, { useState } from 'react';
+import { Calendar, Mountains, Tree, Funnel, X, Check, Images } from '@phosphor-icons/react';
+import React, { useEffect, useState } from 'react';
 
 import { useMode, getTextColors } from '../context/ModeContext';
 
@@ -46,16 +46,26 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
 
   const [localFilters, setLocalFilters] = useState<FilterState>(currentFilters);
 
-  const handleApplyFilters = () => {
-    onFiltersChange(localFilters);
-    onClose();
-  };
+  useEffect(() => {
+    setLocalFilters(currentFilters);
+  }, [currentFilters]);
+
+  // In compact mode (map inline panel), apply changes immediately so closing
+  // the panel never loses active filters.
+  useEffect(() => {
+    if (compact) {
+      onFiltersChange(localFilters);
+    }
+  }, [compact, localFilters, onFiltersChange]);
 
   const handleResetFilters = () => {
     const resetFilters: FilterState = {
       selectedHabitats: [],
       basisOfRecord: [],
       countries: [],
+      hasImage: false,
+      dateRange: undefined,
+      elevationRange: undefined,
     };
     setLocalFilters(resetFilters);
     onFiltersChange(resetFilters);
@@ -98,6 +108,36 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
           </button>
         </div>
         <div className="space-y-4 overflow-y-auto" style={{ maxHeight: 220 }}>
+          {/* Media Filter */}
+          <div
+            className={`p-2 rounded-lg border ${theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-gray-800 border-gray-700'}`}
+          >
+            <h3 className={`font-semibold ${textColors.primary} mb-2 flex items-center gap-2 text-sm`}>
+              <Images className="w-4 h-4" />
+              Media
+            </h3>
+            <button
+              onClick={() =>
+                setLocalFilters((prev) => ({
+                  ...prev,
+                  hasImage: !prev.hasImage,
+                }))
+              }
+              className={`px-2 py-1 rounded text-xs font-medium transition-colors flex items-center gap-2 border ${
+                localFilters.hasImage
+                  ? theme === 'light'
+                    ? 'bg-green-100 border-green-300 text-green-700'
+                    : 'bg-green-900/50 border-green-600 text-green-300'
+                  : theme === 'light'
+                    ? 'bg-white border-gray-300 hover:bg-gray-50 text-gray-700'
+                    : 'bg-gray-700 border-gray-600 hover:bg-gray-600 text-gray-200'
+              }`}
+            >
+              {localFilters.hasImage && <Check className="w-3 h-3" />}
+              Images only
+            </button>
+          </div>
+
           {/* Date Range Filter */}
           <div
             className={`p-2 rounded-lg border ${theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-gray-800 border-gray-700'}`}
@@ -290,7 +330,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
           </div>
         </div>
         {/* Action Buttons */}
-        <div className="flex justify-between mt-4">
+        <div className="flex justify-start mt-4">
           <button
             onClick={handleResetFilters}
             className={`px-3 py-1 rounded-lg font-medium transition-colors text-xs ${
@@ -301,32 +341,6 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
           >
             Reset
           </button>
-          <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className={`px-3 py-1 rounded-lg font-medium transition-colors text-xs ${
-                theme === 'light'
-                  ? 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                  : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-              }`}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleApplyFilters}
-              className={`px-4 py-1 rounded-lg font-medium text-white transition-colors text-xs ${
-                theme === 'light'
-                  ? isCitizen
-                    ? 'bg-green-600 hover:bg-green-700'
-                    : 'bg-blue-600 hover:bg-blue-700'
-                  : isCitizen
-                    ? 'bg-green-500 hover:bg-green-600'
-                    : 'bg-blue-500 hover:bg-blue-600'
-              }`}
-            >
-              Apply
-            </button>
-          </div>
         </div>
       </div>
     );
